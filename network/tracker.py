@@ -1,3 +1,4 @@
+# network/tracker.py
 import socket
 import threading
 
@@ -14,19 +15,21 @@ class Tracker:
         print(f"Tracker listening on {self.host}:{self.port}")
         while True:
             conn, addr = self.sock.accept()
-            threading.Thread(target=self.handle_peer, args=(conn, addr), daemon=True).start()
+            threading.Thread(target=self.handle_peer, args=(conn,), daemon=True).start()
 
-    def handle_peer(self, conn, addr):
-        try:
-            data = conn.recv(1024).decode().strip()
-            if data.startswith("JOIN"):
-                _, peer_addr = data.split(maxsplit=1)
-                self.peers.add(peer_addr)
-                print(f"[+] Registered peer: {peer_addr}")
-            # Send back the full list, one per line
+    def handle_peer(self, conn):
+        data = conn.recv(1024).decode().strip()
+        # If a peer wants the current list
+        if data == "GETPEERS":
             resp = "\n".join(self.peers) + "\n"
             conn.sendall(resp.encode())
-        except Exception as e:
-            print("Error handling peer:", e)
-        finally:
             conn.close()
+            return
+
+        # Otherwise we expect a JOIN message
+        if data.startswith("JOIN"):
+            _, peer_addr = data.split(maxsplit=1)
+            self.peers.add(peer_addr)
+            print(f"[+] Registered peer: {peer_addr}")
+        # no other commands
+        conn.close()

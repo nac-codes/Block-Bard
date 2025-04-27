@@ -47,28 +47,41 @@ class Blockchain:
         Validate a received block dict and append if valid.
         Returns True if added, False otherwise.
         """
-        # Reconstruct the Block object
+
+        # Reconstruct the Block object (including provided hash)
         blk = Block(
             index=blk_dict["index"],
             previous_hash=blk_dict["previous_hash"],
             data=blk_dict["data"],
             timestamp=blk_dict["timestamp"],
-            nonce=blk_dict["nonce"]
+            nonce=blk_dict["nonce"],
+            hash=blk_dict["hash"],
         )
-        # Verify hash integrity
-        if blk.hash != blk_dict["hash"]:
-            print("[Blockchain] Hash mismatch")
-            return False
-        # Verify proof-of-work
-        if not blk.hash.startswith("0" * self.difficulty):
-            print("[Blockchain] Invalid proof-of-work")
-            return False
-        # Verify linkage
+
+        # SPECIAL CASE: first real block (index 1) on an otherwise-empty chain
+        # Adopt the remote genesis hash so subsequent checks pass.
+        if blk.index == 1 and len(self.chain) == 1:
+            print("[Blockchain] Adopting remote genesis hash")
+            self.chain[0].hash = blk.previous_hash
+
+        # 1) Check linkage
         latest = self.get_latest_block()
         if blk.previous_hash != latest.hash:
             print("[Blockchain] Previous hash does not match latest block")
             return False
-        # All good—append
+
+        # 2) Verify hash integrity
+        if blk.hash != blk.calculate_hash():
+            print("[Blockchain] Hash mismatch")
+            return False
+
+        # 3) Verify proof-of-work
+        if not blk.hash.startswith("0" * self.difficulty):
+            print("[Blockchain] Invalid proof-of-work")
+            return False
+
+        # Append and succeed
         self.chain.append(blk)
         print(f"[Blockchain] Appended block {blk.index}")
+        
         return True

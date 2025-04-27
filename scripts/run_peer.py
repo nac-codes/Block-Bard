@@ -9,7 +9,6 @@ from blockchain.blockchain import Blockchain
 from blockchain.block import Block
 
 def fetch_peers(tracker_host, tracker_port, self_id):
-    """Ask tracker for the current peer list (excluding self)."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((tracker_host, tracker_port))
         s.sendall("GETPEERS\n".encode())
@@ -17,7 +16,6 @@ def fetch_peers(tracker_host, tracker_port, self_id):
     return [p for p in data.splitlines() if p != self_id]
 
 def fetch_chain_from_peer(host, port):
-    """Get entire chain from one peer, as list of block-dicts."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((host, port))
@@ -34,59 +32,53 @@ def listen_for_messages(port, bc, tracker_host, tracker_port, self_id):
     srv.bind(('', port))
     srv.listen()
     print(f"[Listener] Listening on port {port}…")
-
     while True:
         conn, _ = srv.accept()
         raw = conn.recv(8192).decode().strip()
 
-        # Respond to GETCHAIN
+        # === CORRECTED GETCHAIN HANDLER ===
         if raw == "GETCHAIN":
             payload = json.dumps([blk.to_dict() for blk in bc.chain])
+            # Send the CHAIN response back on the same connection
             conn.sendall(f"CHAIN {payload}\n".encode())
             conn.close()
             continue
 
-        # Incoming block
+        # Incoming BLOCK…
         if raw.startswith("BLOCK "):
             blk = json.loads(raw[len("BLOCK "):])
             idx = blk["index"]
             latest = bc.get_latest_block()
 
-            # 1) Proper next block?
             if idx == latest.index + 1 and blk["previous_hash"] == latest.hash:
                 bc.chain.append(Block(**blk))
                 print(f"[Listener] Appended block {idx}")
-                conn.close()
-                continue
-
-            # 2) Otherwise, full sync
-            print(f"[Listener] Out-of-order block {idx}; syncing longest chain…")
-            peers = fetch_peers(tracker_host, tracker_port, self_id)
-
-            best_chain = bc.chain
-            for p in peers:
-                h, ps = p.split(':')
-                cl = fetch_chain_from_peer(h, int(ps))
-                if cl and len(cl) > len(best_chain):
-                    best_chain = [Block(**d) for d in cl]
-
-            if len(best_chain) > len(bc.chain):
-                bc.chain = best_chain
-                print(f"[Listener] Synced to chain length {len(bc.chain)}")
             else:
-                print("[Listener] No longer chain found; keeping current")
+                # out-of-order → full sync
+                print(f"[Listener] Out-of-order block {idx}; syncing…")
+                peers = fetch_peers(tracker_host, tracker_port, self_id)
+                best = bc.chain
+                for p in peers:
+                    h, ps = p.split(':')
+                    cl = fetch_chain_from_peer(h, int(ps))
+                    if cl and len(cl) > len(best):
+                        best = [Block(**d) for d in cl]
+                if len(best) > len(bc.chain):
+                    bc.chain = best
+                    print(f"[Listener] Synced; new length={len(bc.chain)}")
+                else:
+                    print("[Listener] No longer chain found.")
 
-        conn.close()
+            conn.close()
 
 def broadcast_block(blk_dict, tracker_host, tracker_port, self_id):
-    """Fetch latest peers and send BLOCK to each (excluding self)."""
     peers = fetch_peers(tracker_host, tracker_port, self_id)
     msg = "BLOCK " + json.dumps(blk_dict) + "\n"
     for p in peers:
-        host, ps = p.split(':')
-        port = int(ps)
         if p == self_id:
             continue
+        host, ps = p.split(':')
+        port = int(ps)
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((host, port))
@@ -103,21 +95,21 @@ if __name__ == "__main__":
     tracker_host, tracker_port, my_port = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
     self_id = f"{socket.gethostname()}:{my_port}"
 
-    # 1) JOIN tracker
+    # Register
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((tracker_host, tracker_port))
         s.sendall(f"JOIN {self_id}\n".encode())
 
-    # 2) Start listener
+    # Start listener
     bc = Blockchain(difficulty=2)
     threading.Thread(
         target=listen_for_messages,
         args=(my_port, bc, tracker_host, tracker_port, self_id),
         daemon=True
     ).start()
-    time.sleep(0.5)  # give the listener a moment
+    time.sleep(0.5)
 
-    # 3) Initial sync to longest chain
+    # Initial sync
     peers = fetch_peers(tracker_host, tracker_port, self_id)
     best = bc.chain
     for p in peers:
@@ -127,16 +119,27 @@ if __name__ == "__main__":
             best = [Block(**d) for d in cl]
     if len(best) > len(bc.chain):
         bc.chain = best
-        print(f"[Startup] Synced chain length = {len(bc.chain)}")
+        print(f"[Startup] Synced chain length={len(bc.chain)}")
 
-    # 4) Interactive mining shell
-    print("\nType text to mine a block, or 'exit' to quit.")
+    # Interactive demo loop
+    print("\n===== Story Shell =====")
+    print("Type any text to add a verse, 'show' to display story, or 'exit' to quit.\n")
+
     try:
         while True:
-            data = input(">> ")
-            if data.lower() in ("exit", "quit"):
+            line = input(">> ")
+            cmd = line.strip().lower()
+            if cmd in ("exit", "quit"):
                 break
-            new_blk = bc.add_block(data)
+            if cmd == "show":
+                # print all story segments
+                for b in bc.chain:
+                    auth = b.to_dict().get("author", "system")
+                    print(f"#{b.index} ({auth}): {b.data}")
+                print()
+                continue
+            # Mine a new verse
+            new_blk = bc.add_block({"content": line, "author": self_id})
             print(f"[Mined] #{new_blk.index} hash={new_blk.hash}")
             broadcast_block(new_blk.to_dict(), tracker_host, tracker_port, self_id)
             print(f"[Chain] length={len(bc.chain)}, latest={bc.get_latest_block().index}\n")

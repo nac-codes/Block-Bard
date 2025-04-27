@@ -8,9 +8,14 @@
 # First run trackers
 python3 -m scripts.run_tracker
 
-# Then run peers
+# Then run peers (for human)
 python3 -m scripts.run_peer 127.0.0.1 8000 50000
 python3 -m scripts.run_peer 127.0.0.1 8000 50001
+
+# Or we can use AI agents
+# Note have to set up AI agent
+python3 -m scripts.run_node 127.0.0.1 8000 50000
+python3 -m scripts.run_node 127.0.0.1 8000 50001
 
 # Then server
 python3 scripts/run_server.py

@@ -40,14 +40,14 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
         conn, _ = srv.accept()
         raw = conn.recv(8192).decode().strip()
 
-        # === FIXED GETCHAIN ===
+        # Reply on same connection to GETCHAIN
         if raw == "GETCHAIN":
             payload = json.dumps([blk.to_dict() for blk in bc.chain])
             conn.sendall(f"CHAIN {payload}\n".encode())
             conn.close()
             continue
 
-        # BLOCK messages
+        # Incoming block
         if raw.startswith("BLOCK "):
             blk = json.loads(raw[len("BLOCK "):])
             latest = bc.get_latest_block()
@@ -55,7 +55,7 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
                 bc.chain.append(Block(**blk))
                 print(f"[Listener] Appended block #{blk['index']}")
             else:
-                # -- same sync logic as before --
+                # Out‐of‐order → sync longest chain
                 print(f"[Listener] Out-of-order block {blk['index']}; syncing…")
                 peers = fetch_peers(tracker_host, tracker_port, self_id)
                 best = bc.chain
@@ -77,16 +77,15 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
                     print(f"[Listener] Synced to length {len(bc.chain)}")
             conn.close()
 
-
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: run_node.py <tracker_host> <tracker_port> <my_port>")
         sys.exit(1)
 
-    tracker_host, tracker_port, my_port = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+    tracker_host, tracker_port, my_port = sys.argv[1], int(sys.argv[2]), sys.argv[3]
     self_id = f"{socket.gethostname()}:{my_port}"
 
-    # 1) Register
+    # 1) Register with tracker
     with socket.socket() as s:
         s.connect((tracker_host, tracker_port))
         s.sendall(f"JOIN {self_id}\n".encode())
@@ -95,12 +94,12 @@ if __name__ == "__main__":
     bc = Blockchain(difficulty=2)
     threading.Thread(
         target=listen_for_blocks,
-        args=(my_port, bc, tracker_host, tracker_port, self_id),
+        args=(int(my_port), bc, tracker_host, tracker_port, self_id),
         daemon=True
     ).start()
     time.sleep(1)
 
-    # 3) Sync at startup (same as before)
+    # 3) Initial sync to longest chain
     peers = fetch_peers(tracker_host, tracker_port, self_id)
     best = bc.chain
     for p in peers:
@@ -128,11 +127,12 @@ if __name__ == "__main__":
     )
     st = StoryTeller(prefs)
 
-    # 5) Launch the mining agent
+    # 5) Launch the mining agent with a unique name
     miner = MiningAgent(
         bc=bc,
         storyteller=st,
         broadcast_fn=lambda blk: broadcast_fn(tracker_host, tracker_port, self_id, blk),
+        agent_name=self_id,
         mine_interval=5.0
     )
     miner.start()

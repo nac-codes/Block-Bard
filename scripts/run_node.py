@@ -7,7 +7,6 @@ import time
 
 from blockchain.blockchain import Blockchain
 from blockchain.block import Block
-from agent.preferences import AgentPreferences
 from agent.storyteller import StoryTeller
 from agent.mining_agent import MiningAgent
 
@@ -144,12 +143,11 @@ if __name__ == "__main__":
         print(f"[Startup] Synced to length {len(bc.chain)}")
 
     # 4) Configure your AI agent
-    prefs = AgentPreferences(
-        writing_style="poetic",
-        themes=["adventure", "friendship"],
-        characters=["Alice", "The Dragon"]
-    )
-    st = StoryTeller(prefs)
+    print("\nConfigure your AI agent's personality:")
+    print("Examples: 'evil sorcerer', 'Albert Einstein', '12th century peasant', etc.")
+    personality = input("Enter your AI agent's personality: ").strip()
+    
+    st = StoryTeller(personality=personality)
 
     # 5) Launch the mining agent with a unique name
     miner = MiningAgent(

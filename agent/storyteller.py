@@ -4,12 +4,9 @@ import os
 from openai import OpenAI
 from typing import List, Dict, Any
 
-from agent.preferences import AgentPreferences
-from agent.styles import DEFAULT_STYLES
-
 class StoryTeller:
-    def __init__(self, prefs: AgentPreferences):
-        self.prefs = prefs
+    def __init__(self, personality: str):
+        self.personality = personality
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise RuntimeError("Please set OPENAI_API_KEY in your environment")
@@ -18,13 +15,9 @@ class StoryTeller:
 
     def _build_prompt(self, context: List[str]) -> str:
         last_lines = "\n".join(context[-3:])
-        themes = ", ".join(self.prefs.themes)
-        chars  = ", ".join(self.prefs.characters)
         return (
             f"Continue this collaborative story.\n\n"
             f"Previous lines:\n{last_lines}\n\n"
-            f"Themes: {themes}\n"
-            f"Characters: {chars}\n\n"
             f"Next line:"
         )
     
@@ -50,7 +43,6 @@ class StoryTeller:
         Returns (text, position_dict)
         """
         prompt = self._build_prompt(context)
-        style = DEFAULT_STYLES.get(self.prefs.writing_style, {})
         
         # Calculate position
         position = None
@@ -61,11 +53,11 @@ class StoryTeller:
             resp = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a creative AI storyteller."},
+                    {"role": "system", "content": f"You are a creative AI storyteller. You are roleplaying as: {self.personality}"},
                     {"role": "user",   "content": prompt}
                 ],
-                temperature=style.get("temperature", 0.7),
-                max_tokens=style.get("max_tokens", 100)
+                temperature=0.8,  # Slightly higher temperature for more creative responses
+                max_tokens=100
             )
             text = resp.choices[0].message.content.strip()
             return text.split("\n")[0], position

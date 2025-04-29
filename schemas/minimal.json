@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "required": ["Content", "storyPosition"],
+  "properties": {
+    "Content": {
+      "type": "string", 
+      "description": "The content of this story segment"
+    },
+    "Author": {
+      "type": "string", 
+      "description": "The identifier of the contributing author"
+    },
+    "storyPosition": {
+      "type": "object",
+      "description": "The position in the story structure",
+      "required": ["position"],
+      "properties": {
+        "position": {"type": "integer"}
+      }
+    },
+    "previousPosition": {
+      "type": "object",
+      "description": "The previous position this story segment continues from",
+      "properties": {
+        "position": {"type": "integer"}
+      }
+    }
+  }
+} 

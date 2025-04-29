@@ -11,7 +11,8 @@ class Block:
                  timestamp=None,
                  nonce=0,
                  hash=None,
-                 position_hash=None):
+                 position_hash=None,
+                 previous_position_hash=None):
         self.index = index
         self.timestamp = timestamp if timestamp is not None else time.time()
         self.data = data            # original "payload" for tests
@@ -19,6 +20,7 @@ class Block:
         self.previous_hash = previous_hash
         self.nonce = nonce
         self.position_hash = position_hash
+        self.previous_position_hash = previous_position_hash  # New field for story branching
 
         # Use provided hash (from network sync or tests), else compute
         if hash:
@@ -37,6 +39,7 @@ class Block:
                 f"{self.previous_hash}"
                 f"{self.nonce}"
                 f"{self.position_hash}"
+                f"{self.previous_position_hash}"
             )
         else:
             # test‐compatible payload (no author)
@@ -47,6 +50,7 @@ class Block:
                 f"{self.previous_hash}"
                 f"{self.nonce}"
                 f"{self.position_hash}"
+                f"{self.previous_position_hash}"
             )
         return hashlib.sha256(payload.encode()).hexdigest()
 
@@ -60,9 +64,11 @@ class Block:
             "nonce": self.nonce,
             "hash": self.hash,
         }
-        # Only include author and position_hash if set
+        # Only include author and position hashes if set
         if self.author is not None:
             d["author"] = self.author
         if self.position_hash is not None:
             d["position_hash"] = self.position_hash
+        if self.previous_position_hash is not None:
+            d["previous_position_hash"] = self.previous_position_hash
         return d

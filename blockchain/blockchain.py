@@ -26,17 +26,19 @@ class Blockchain:
         """
         payload can be:
         - a string → treated as data (no author, no position)
-        - a dict with keys 'data' or 'content', optional 'author', and optional 'position'
+        - a dict with keys 'data' or 'content', optional 'author', optional 'position', and optional 'previous_position'
         """
         if isinstance(payload, dict):
             # demo usage: payload={'content': "...", 'author': "peer_id", 'position': {'book':1, 'chapter':1, 'verse':1}}
             data = payload.get("content", payload.get("data"))
             author = payload.get("author")
             position = payload.get("position")
+            previous_position = payload.get("previous_position")
         else:
             data = payload
             author = None
             position = None
+            previous_position = None
 
         # Generate position hash if position data is provided
         position_hash = None
@@ -46,13 +48,25 @@ class Blockchain:
             if not self._is_position_hash_unique(position_hash):
                 raise ValueError("Position hash already exists in the chain")
 
+        # Generate previous position hash if provided
+        previous_position_hash = None
+        if previous_position:
+            previous_position_hash = generate_position_hash(previous_position)
+            # Verify the previous position hash exists on the chain - exception for first block
+            prev = self.get_latest_block()
+            is_first_content_block = (prev.index == 0)
+            if not is_first_content_block and not self._is_position_hash_in_chain(previous_position_hash):
+                raise ValueError("Previous position hash not found in the chain")
+            # For first content block, we'll accept any previousPosition as valid
+
         prev = self.get_latest_block()
         new_block = Block(
             index=prev.index + 1,
             previous_hash=prev.hash,
             data=data,
             author=author,
-            position_hash=position_hash
+            position_hash=position_hash,
+            previous_position_hash=previous_position_hash
         )
         # Proof‐of‐Work
         self._mine_block(new_block)
@@ -67,6 +81,15 @@ class Blockchain:
             if block.position_hash == position_hash:
                 return False
         return True
+        
+    def _is_position_hash_in_chain(self, position_hash):
+        """
+        Check if a position hash exists in the chain
+        """
+        for block in self.chain:
+            if block.position_hash == position_hash:
+                return True
+        return False
 
     def _mine_block(self, block):
         target = "0" * self.difficulty
@@ -93,6 +116,10 @@ class Blockchain:
                 if curr.position_hash in position_hashes:
                     return False
                 position_hashes.add(curr.position_hash)
+            # Previous position hash existence check (if provided) - exception for first content block
+            is_first_content_block = (curr.index == 1)
+            if curr.previous_position_hash is not None and not is_first_content_block and not any(b.position_hash == curr.previous_position_hash for b in self.chain[:i]):
+                return False
         return True
 
     def add_block_from_dict(self, blk_dict):
@@ -104,6 +131,12 @@ class Blockchain:
         if "position_hash" in blk_dict and not self._is_position_hash_unique(blk_dict["position_hash"]):
             print("[Blockchain] Position hash already exists in the chain")
             return False
+            
+        # Check if previous_position_hash exists in our chain (if provided)
+        is_first_content_block = (blk_dict["index"] == 1)
+        if "previous_position_hash" in blk_dict and not is_first_content_block and not self._is_position_hash_in_chain(blk_dict["previous_position_hash"]):
+            print("[Blockchain] Previous position hash not found in the chain")
+            return False
 
         # Reconstruct with optional author and position_hash
         blk = Block(
@@ -114,7 +147,8 @@ class Blockchain:
             timestamp=blk_dict["timestamp"],
             nonce=blk_dict["nonce"],
             hash=blk_dict["hash"],
-            position_hash=blk_dict.get("position_hash")
+            position_hash=blk_dict.get("position_hash"),
+            previous_position_hash=blk_dict.get("previous_position_hash")
         )
 
         # If this is the first non‐genesis block on an otherwise‐empty chain,
@@ -163,6 +197,10 @@ class Blockchain:
                 if curr.position_hash in position_hashes:
                     return False
                 position_hashes.add(curr.position_hash)
+            # Check previous position hash exists in earlier blocks - exception for first content block
+            is_first_content_block = (curr.index == 1)
+            if curr.previous_position_hash is not None and not is_first_content_block and not any(b.position_hash == curr.previous_position_hash for b in chain[:i]):
+                return False
         return True
 
     def resolve_conflicts(self, other_chains):

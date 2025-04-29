@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "required": ["Book", "Chapter", "Verse", "Content", "Author"],
+  "properties": {
+    "Book": {
+      "type": "string", 
+      "description": "The name of the book"
+    },
+    "Chapter": {
+      "type": "integer", 
+      "description": "The chapter number"
+    },
+    "Verse": {
+      "type": "integer", 
+      "description": "The verse number"
+    },
+    "Content": {
+      "type": "string", 
+      "description": "The text content of the verse"
+    },
+    "Author": {
+      "type": "string", 
+      "description": "The identifier of the contributing author"
+    },
+    "storyPosition": {
+      "type": "object",
+      "description": "The position in the story structure",
+      "required": ["book", "chapter", "verse"],
+      "properties": {
+        "book": {"type": "string"},
+        "chapter": {"type": "integer"},
+        "verse": {"type": "integer"}
+      }
+    },
+    "previousPosition": {
+      "type": "object",
+      "description": "The previous position this story segment continues from",
+      "required": ["book", "chapter", "verse"],
+      "properties": {
+        "book": {"type": "string"},
+        "chapter": {"type": "integer"},
+        "verse": {"type": "integer"}
+      }
+    }
+  }
+} 

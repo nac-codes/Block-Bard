@@ -4,78 +4,315 @@
   <meta charset="utf-8">
   <title>Block-Bard Story</title>
   <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    li { margin-bottom: 0.5rem; }
-    .position { color: #666; font-size: 0.9em; margin-left: 0.5rem; }
-    .story-container { max-width: 800px; margin: 0 auto; }
-    .block-info { font-size: 0.8em; color: #888; margin-bottom: 0.25rem; }
-    .block-content { font-size: 1.1em; margin-bottom: 1rem; }
+    body { font-family: sans-serif; padding: 2rem; background-color: #f8f9fa; }
+    .story-container { max-width: 960px; margin: 0 auto; }
+    .controls { margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
+    .story-block { 
+      border: 1px solid #ddd; 
+      border-radius: 8px; 
+      padding: 1rem; 
+      margin-bottom: 1rem; 
+      background-color: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .block-header { 
+      display: flex; 
+      justify-content: space-between; 
+      margin-bottom: 0.5rem;
+      font-size: 0.9em;
+      color: #666;
+    }
+    .block-position { font-weight: bold; }
+    .block-content { 
+      font-size: 1.1rem; 
+      line-height: 1.5;
+      margin-bottom: 0.5rem;
+    }
+    .branch-indicator {
+      font-size: 0.85rem;
+      color: #0066cc;
+      margin-top: 0.5rem;
+      display: flex;
+      align-items: center;
+    }
+    .branch-arrow {
+      display: inline-block;
+      margin-right: 0.5rem;
+      color: #0066cc;
+    }
+    .view-controls {
+      margin-bottom: 1rem;
+    }
+    .view-mode {
+      margin-right: 1rem;
+    }
+    .view-title {
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    .story-container h1 {
+      color: #333;
+      margin-bottom: 1.5rem;
+    }
+    .refresh-button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .refresh-button:hover {
+      background-color: #45a049;
+    }
   </style>
 </head>
 <body>
   <div class="story-container">
-    <h1>Block-Bard Story</h1>
-    <button onclick="loadChain()">Refresh</button>
+    <h1>Block-Bard: Branching Story</h1>
+    
+    <div class="controls">
+      <div class="view-controls">
+        <span class="view-title">View Mode:</span>
+        <label class="view-mode">
+          <input type="radio" name="view-mode" value="chronological" checked> Chronological
+        </label>
+        <label class="view-mode">
+          <input type="radio" name="view-mode" value="branched"> Branched
+        </label>
+      </div>
+      <button onclick="loadChain()" class="refresh-button">Refresh Story</button>
+    </div>
+    
     <div id="story"></div>
   </div>
 
   <script>
+    // Track the current chain data
+    let currentChain = [];
+    
+    // Helper to create a unique key from position data
+    function getPositionKey(position) {
+      return JSON.stringify(position);
+    }
+    
+    // Extract JSON data from a block
+    function extractBlockData(block) {
+      try {
+        return JSON.parse(block.data);
+      } catch (e) {
+        // If not valid JSON, return the raw data
+        return { 
+          Content: block.data,
+          storyPosition: null,
+          previousPosition: null
+        };
+      }
+    }
+    
+    // Create a position display string
+    function formatPosition(position) {
+      if (!position) return "Unknown";
+      
+      // For bible schema
+      if (position.book !== undefined && position.chapter !== undefined && position.verse !== undefined) {
+        return `${position.book} ${position.chapter}:${position.verse}`;
+      }
+      
+      // For novel schema
+      if (position.title !== undefined && position.chapter !== undefined && position.section !== undefined) {
+        return `${position.title} Ch.${position.chapter} §${position.section}`;
+      }
+      
+      // Generic display
+      return JSON.stringify(position);
+    }
+    
+    // Build a branch map from position to children
+    function buildBranchMap(blocks) {
+      const branchMap = new Map();
+      const positionMap = new Map();
+      
+      // First, index all positions
+      blocks.forEach(block => {
+        const data = extractBlockData(block);
+        if (data.storyPosition) {
+          const posKey = getPositionKey(data.storyPosition);
+          positionMap.set(posKey, block);
+        }
+      });
+      
+      // Then build the branch map
+      blocks.forEach(block => {
+        const data = extractBlockData(block);
+        if (data.previousPosition) {
+          const prevPosKey = getPositionKey(data.previousPosition);
+          if (!branchMap.has(prevPosKey)) {
+            branchMap.set(prevPosKey, []);
+          }
+          if (data.storyPosition) {
+            branchMap.get(prevPosKey).push(getPositionKey(data.storyPosition));
+          }
+        }
+      });
+      
+      return { branchMap, positionMap };
+    }
+    
+    // Render the story in chronological order (as blocks were added)
+    function renderChronological(blocks) {
+      const storyDiv = document.getElementById('story');
+      storyDiv.innerHTML = '';
+      
+      blocks.forEach(block => {
+        if (block.index === 0) return; // Skip genesis
+        
+        const blockDiv = createBlockElement(block);
+        storyDiv.appendChild(blockDiv);
+      });
+    }
+    
+    // Render the story in branched mode, showing the story structure
+    function renderBranched(blocks) {
+      const storyDiv = document.getElementById('story');
+      storyDiv.innerHTML = '';
+      
+      // Build the branch map
+      const { branchMap, positionMap } = buildBranchMap(blocks);
+      
+      // Find root nodes (blocks with no previous position)
+      const rootNodes = [];
+      blocks.forEach(block => {
+        if (block.index === 0) return; // Skip genesis
+        
+        const data = extractBlockData(block);
+        if (!data.previousPosition) {
+          rootNodes.push(block);
+        }
+      });
+      
+      // Render each branch starting from root nodes
+      rootNodes.forEach(rootBlock => {
+        const data = extractBlockData(rootBlock);
+        const blockDiv = createBlockElement(rootBlock);
+        storyDiv.appendChild(blockDiv);
+        
+        if (data.storyPosition) {
+          const posKey = getPositionKey(data.storyPosition);
+          renderBranch(branchMap, positionMap, posKey, storyDiv, 1);
+        }
+      });
+    }
+    
+    // Recursively render a branch
+    function renderBranch(branchMap, positionMap, positionKey, container, depth) {
+      const childKeys = branchMap.get(positionKey) || [];
+      
+      childKeys.forEach(childKey => {
+        const block = positionMap.get(childKey);
+        if (block) {
+          const blockDiv = createBlockElement(block, depth);
+          container.appendChild(blockDiv);
+          
+          // Recurse
+          renderBranch(branchMap, positionMap, childKey, container, depth + 1);
+        }
+      });
+    }
+    
+    // Create a block element
+    function createBlockElement(block, indentLevel = 0) {
+      const blockDiv = document.createElement('div');
+      blockDiv.className = 'story-block';
+      blockDiv.style.marginLeft = `${indentLevel * 20}px`;
+      
+      // Extract block data
+      let blockData;
+      try {
+        blockData = JSON.parse(block.data);
+      } catch (e) {
+        blockData = { Content: block.data };
+      }
+      
+      // Block header
+      const headerDiv = document.createElement('div');
+      headerDiv.className = 'block-header';
+      
+      // Author and block info
+      const authorDiv = document.createElement('div');
+      authorDiv.textContent = `#${block.index} | Author: ${block.author || 'Unknown'}`;
+      headerDiv.appendChild(authorDiv);
+      
+      // Position info
+      const positionDiv = document.createElement('div');
+      positionDiv.className = 'block-position';
+      
+      if (blockData.storyPosition) {
+        positionDiv.textContent = `Position: ${formatPosition(blockData.storyPosition)}`;
+      } else {
+        positionDiv.textContent = 'Position: Unknown';
+      }
+      
+      headerDiv.appendChild(positionDiv);
+      blockDiv.appendChild(headerDiv);
+      
+      // Content
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'block-content';
+      contentDiv.textContent = blockData.Content || blockData.content || block.data;
+      blockDiv.appendChild(contentDiv);
+      
+      // Previous position indicator
+      if (blockData.previousPosition) {
+        const branchDiv = document.createElement('div');
+        branchDiv.className = 'branch-indicator';
+        branchDiv.innerHTML = `<span class="branch-arrow">↑</span> Continues from: ${formatPosition(blockData.previousPosition)}`;
+        blockDiv.appendChild(branchDiv);
+      }
+      
+      return blockDiv;
+    }
+    
+    // Handle view mode changes
+    function handleViewModeChange() {
+      const viewMode = document.querySelector('input[name="view-mode"]:checked').value;
+      
+      if (viewMode === 'chronological') {
+        renderChronological(currentChain);
+      } else {
+        renderBranched(currentChain);
+      }
+    }
+    
+    // Add event listeners to view mode controls
+    document.querySelectorAll('input[name="view-mode"]').forEach(input => {
+      input.addEventListener('change', handleViewModeChange);
+    });
+    
+    // Load the chain from the server
     async function loadChain() {
       try {
         const res = await fetch('/chain');
-        const chain = await res.json();
-        const storyDiv = document.getElementById('story');
-        storyDiv.innerHTML = '';
+        currentChain = await res.json();
         
-        if (!chain.length) {
-          storyDiv.innerHTML = '<p><em>No blocks yet</em></p>';
+        if (!currentChain.length) {
+          document.getElementById('story').innerHTML = '<p><em>No blocks yet</em></p>';
           return;
         }
         
-        // Sort blocks by book, chapter, verse if position data exists
-        const sortedChain = [...chain].sort((a, b) => {
-          // First by index if no position data
-          if (!a.verse || !b.verse) return a.index - b.index;
-          
-          // Then by book, chapter, verse
-          if (a.book !== b.book) return a.book - b.book;
-          if (a.chapter !== b.chapter) return a.chapter - b.chapter;
-          return a.verse - b.verse;
-        });
+        // Render according to current view mode
+        handleViewModeChange();
         
-        sortedChain.forEach(block => {
-          const blockDiv = document.createElement('div');
-          blockDiv.className = 'block';
-          
-          // Block metadata
-          const infoDiv = document.createElement('div');
-          infoDiv.className = 'block-info';
-          const author = block.author || 'system';
-          
-          let positionText = '';
-          if (block.verse) {
-            positionText = ` | Book ${block.book}, Chapter ${block.chapter}, Verse ${block.verse}`;
-          } else if (block.position_hash) {
-            positionText = ` | Position: ${block.position_hash.substring(0, 8)}...`;
-          }
-          
-          infoDiv.textContent = `#${block.index} (${author})${positionText}`;
-          
-          // Block content
-          const contentDiv = document.createElement('div');
-          contentDiv.className = 'block-content';
-          contentDiv.textContent = block.data;
-          
-          blockDiv.appendChild(infoDiv);
-          blockDiv.appendChild(contentDiv);
-          storyDiv.appendChild(blockDiv);
-        });
       } catch (e) {
         console.error(e);
+        document.getElementById('story').innerHTML = '<p><em>Error loading story</em></p>';
       }
     }
-    // Auto-refresh every 5 seconds
-    setInterval(loadChain, 5000);
+    
+    // Auto-refresh every 10 seconds
+    setInterval(loadChain, 10000);
+    
+    // Initial load
     loadChain();
   </script>
 </body>

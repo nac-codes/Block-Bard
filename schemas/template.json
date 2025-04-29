@@ -1,0 +1,42 @@
+{
+  "type": "object",
+  "required": ["Content", "Author", "storyPosition"],
+  "properties": {
+    "Content": {
+      "type": "string", 
+      "description": "The content of this story segment"
+    },
+    "Author": {
+      "type": "string", 
+      "description": "The identifier of the contributing author"
+    },
+    "CustomField1": {
+      "type": "string",
+      "description": "A custom field - modify this example as needed"
+    },
+    "CustomField2": {
+      "type": "integer",
+      "description": "Another custom field - modify this example as needed"
+    },
+    "storyPosition": {
+      "type": "object",
+      "description": "The position in the story structure",
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string"},
+        "customPos1": {"type": "string"},
+        "customPos2": {"type": "integer"}
+      }
+    },
+    "previousPosition": {
+      "type": "object",
+      "description": "The previous position this story segment continues from",
+      "required": ["id"],
+      "properties": {
+        "id": {"type": "string"},
+        "customPos1": {"type": "string"},
+        "customPos2": {"type": "integer"}
+      }
+    }
+  }
+} 

@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "required": ["Title", "Chapter", "Section", "Content", "Author"],
+  "properties": {
+    "Title": {
+      "type": "string", 
+      "description": "The title of the novel"
+    },
+    "Chapter": {
+      "type": "integer", 
+      "description": "The chapter number"
+    },
+    "Section": {
+      "type": "integer", 
+      "description": "The section number within the chapter"
+    },
+    "Content": {
+      "type": "string", 
+      "description": "The text content of the section"
+    },
+    "Author": {
+      "type": "string", 
+      "description": "The identifier of the contributing author"
+    },
+    "storyPosition": {
+      "type": "object",
+      "description": "The position in the story structure",
+      "required": ["title", "chapter", "section"],
+      "properties": {
+        "title": {"type": "string"},
+        "chapter": {"type": "integer"},
+        "section": {"type": "integer"}
+      }
+    },
+    "previousPosition": {
+      "type": "object",
+      "description": "The previous position this story segment continues from",
+      "required": ["title", "chapter", "section"],
+      "properties": {
+        "title": {"type": "string"},
+        "chapter": {"type": "integer"},
+        "section": {"type": "integer"}
+      }
+    }
+  }
+} 

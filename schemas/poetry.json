@@ -1,0 +1,54 @@
+{
+  "type": "object",
+  "required": ["Collection", "Poem", "Stanza", "Content", "Author"],
+  "properties": {
+    "Collection": {
+      "type": "string", 
+      "description": "The name of the poetry collection"
+    },
+    "Poem": {
+      "type": "integer", 
+      "description": "The poem number in the collection"
+    },
+    "Stanza": {
+      "type": "integer", 
+      "description": "The stanza number within the poem"
+    },
+    "Content": {
+      "type": "string", 
+      "description": "The text content of the stanza"
+    },
+    "Author": {
+      "type": "string", 
+      "description": "The identifier of the contributing author"
+    },
+    "Form": {
+      "type": "string",
+      "description": "The poetic form (sonnet, haiku, free verse, etc.)"
+    },
+    "Rhyme": {
+      "type": "string",
+      "description": "The rhyme scheme (AABB, ABAB, etc.)"
+    },
+    "storyPosition": {
+      "type": "object",
+      "description": "The position in the story structure",
+      "required": ["collection", "poem", "stanza"],
+      "properties": {
+        "collection": {"type": "string"},
+        "poem": {"type": "integer"},
+        "stanza": {"type": "integer"}
+      }
+    },
+    "previousPosition": {
+      "type": "object",
+      "description": "The previous position this story segment continues from",
+      "required": ["collection", "poem", "stanza"],
+      "properties": {
+        "collection": {"type": "string"},
+        "poem": {"type": "integer"},
+        "stanza": {"type": "integer"}
+      }
+    }
+  }
+} 

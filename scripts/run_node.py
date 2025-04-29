@@ -4,6 +4,9 @@ import sys
 import threading
 import json
 import time
+import argparse
+import logging
+import os
 
 from blockchain.blockchain import Blockchain
 from blockchain.block import Block
@@ -93,18 +96,43 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
                     print(f"[Listener] Synced to length {len(bc.chain)}")
             conn.close()
 
-if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: run_node.py <tracker_host> <tracker_port> <my_port>")
-        sys.exit(1)
+def main():
+    parser = argparse.ArgumentParser(description="Run a Block-Bard node")
+    parser.add_argument("--tracker-host", default="127.0.0.1", help="Tracker host (default: 127.0.0.1)")
+    parser.add_argument("--tracker-port", type=int, default=8000, help="Tracker port (default: 8000)")
+    parser.add_argument("--port", type=int, required=True, help="Port to listen on")
+    parser.add_argument("--schema", default="bible", help="Story schema to use (bible, novel, or path to JSON file)")
+    parser.add_argument("--writing-style", default="poetic", help="Writing style (poetic, technical, casual, etc.)")
+    parser.add_argument("--themes", default="adventure,friendship", help="Themes (comma-separated)")
+    parser.add_argument("--characters", default="Alice,The Dragon", help="Characters (comma-separated)")
+    parser.add_argument("--mine-interval", type=float, default=5.0, help="Mining interval in seconds (default: 5.0)")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
+                       help="Set the logging level")
+    parser.add_argument("--api-key", help="OpenAI API key (defaults to OPENAI_API_KEY environment variable)")
+    parser.add_argument("--system-prompt", 
+                       help="System prompt for AI personality (filepath or direct text)")
+    args = parser.parse_args()
 
-    tracker_host, tracker_port, my_port = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+    # Configure logging
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(f"node_{args.port}.log")
+        ]
+    )
+    logger = logging.getLogger("node")
+    
+    tracker_host, tracker_port, my_port = args.tracker_host, args.tracker_port, args.port
     self_id = f"{socket.gethostname()}:{my_port}"
+    logger.info(f"Starting node with ID: {self_id}")
 
     # 1) Register with tracker
     with socket.socket() as s:
         s.connect((tracker_host, tracker_port))
         s.sendall(f"JOIN {self_id}\n".encode())
+    logger.info(f"Registered with tracker at {tracker_host}:{tracker_port}")
 
     # 2) Start blockchain and listener
     bc = Blockchain(difficulty=2)
@@ -114,6 +142,7 @@ if __name__ == "__main__":
         daemon=True
     ).start()
     time.sleep(1)
+    logger.info(f"Listener started on port {my_port}")
 
     # 3) Initial sync to longest chain
     peers = fetch_peers(tracker_host, tracker_port, self_id)
@@ -136,30 +165,49 @@ if __name__ == "__main__":
                     best_chain = candidate
                     best_length = len(candidate)
         except Exception as e:
-            print(f"[Startup] Error syncing with {p}: {e}")
+            logger.warning(f"Error syncing with {p}: {e}")
             continue
 
     if best_chain and len(best_chain) > len(bc.chain):
         bc.chain = best_chain
-        print(f"[Startup] Synced to length {len(bc.chain)}")
+        logger.info(f"Synced to chain length {len(bc.chain)}")
+    else:
+        logger.info("No longer chain found, using genesis block")
 
     # 4) Configure your AI agent
     prefs = AgentPreferences(
-        writing_style="poetic",
-        themes=["adventure", "friendship"],
-        characters=["Alice", "The Dragon"]
+        writing_style=args.writing_style,
+        themes=args.themes.split(','),
+        characters=args.characters.split(',')
     )
-    st = StoryTeller(prefs)
+    st = StoryTeller(
+        prefs, 
+        schema_name_or_path=args.schema, 
+        api_key=args.api_key,
+        system_prompt=args.system_prompt
+    )
+    logger.info(f"Configured StoryTeller with schema: {args.schema}")
+    if args.system_prompt:
+        logger.info(f"Using custom system prompt: {args.system_prompt}")
 
-    # 5) Launch the mining agent with a unique name
+    # 5) Launch the mining agent
     miner = MiningAgent(
         bc=bc,
         storyteller=st,
         broadcast_fn=lambda blk: broadcast_fn(tracker_host, tracker_port, self_id, blk),
         agent_name=self_id,
-        mine_interval=5.0
+        mine_interval=args.mine_interval,
+        story_schema=args.schema
     )
+    logger.info(f"Starting mining agent with interval {args.mine_interval}s")
     miner.start()
 
     # 6) Keep the main thread alive
-    miner.join()
+    try:
+        miner.join()
+    except KeyboardInterrupt:
+        logger.info("Shutting down node")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()

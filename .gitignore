@@ -3,3 +3,17 @@
 
 # Mac OS
 .DS_Store 
+
+# Python bytecode
+__pycache__/
+*/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/
+
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+__pycache__
+

@@ -25,15 +25,28 @@ class MiningAgent(threading.Thread):
         while True:
             # 1) Build context from existing chain
             context = [blk.data for blk in self.bc.chain]
-            # 2) Ask the AI for the next line
-            next_line = self.st.generate(context)
-            # 3) Mine & append the new block with this agent’s name
-            blk = self.bc.add_block({
-                "content": next_line,
-                "author": self.agent_name
-            })
-            print(f"[Agent] Mined block #{blk.index}: {next_line!r}")
-            # 4) Broadcast to peers
-            self.broadcast(blk.to_dict())
+            # 2) Ask the AI for the next line and its position
+            next_line, position = self.st.generate(context, self.bc.chain)
+            
+            # Skip if we couldn't generate a position
+            if not position:
+                print("[Agent] Couldn't determine story position, skipping this round")
+                time.sleep(self.interval)
+                continue
+                
+            # 3) Mine & append the new block with this agent's name and position
+            try:
+                blk = self.bc.add_block({
+                    "content": next_line,
+                    "author": self.agent_name,
+                    "position": position
+                })
+                print(f"[Agent] Mined block #{blk.index}: {next_line!r} (position: {position})")
+                # 4) Broadcast to peers
+                self.broadcast(blk.to_dict())
+            except ValueError as e:
+                # This happens if the position hash is already taken
+                print(f"[Agent] Mining failed: {e}")
+                
             # 5) Wait before next mining round
             time.sleep(self.interval)

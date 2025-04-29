@@ -51,14 +51,24 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
         if raw.startswith("BLOCK "):
             blk = json.loads(raw[len("BLOCK "):])
             latest = bc.get_latest_block()
+            
+            # Check for position hash uniqueness
+            if "position_hash" in blk and any(b.position_hash == blk["position_hash"] for b in bc.chain):
+                print(f"[Listener] Rejecting block with duplicate position hash")
+                conn.close()
+                continue
+                
             if blk["index"] == latest.index + 1 and blk["previous_hash"] == latest.hash:
-                bc.chain.append(Block(**blk))
-                print(f"[Listener] Appended block #{blk['index']}")
+                # Try to add the block
+                if bc.add_block_from_dict(blk):
+                    print(f"[Listener] Appended block #{blk['index']}")
             else:
                 # Out‐of‐order → sync longest chain
                 print(f"[Listener] Out-of-order block {blk['index']}; syncing…")
                 peers = fetch_peers(tracker_host, tracker_port, self_id)
-                best = bc.chain
+                best_chain = None
+                best_length = len(bc.chain)
+                
                 for p in peers:
                     host, ps = p.split(':')
                     try:
@@ -67,13 +77,19 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
                             s3.sendall(b"GETCHAIN\n")
                             data = s3.recv(65536).decode().strip()
                         if data.startswith("CHAIN "):
-                            cl = json.loads(data[len("CHAIN "):])
-                            if len(cl) > len(best):
-                                best = [Block(**d) for d in cl]
-                    except:
+                            chain_data = json.loads(data[len("CHAIN "):])
+                            candidate = [Block(**d) for d in chain_data]
+                            
+                            # Check if this is a valid chain with no duplicate position hashes
+                            if len(candidate) > best_length and bc.is_valid_chain(candidate):
+                                best_chain = candidate
+                                best_length = len(candidate)
+                    except Exception as e:
+                        print(f"[Listener] Error syncing with {p}: {e}")
                         continue
-                if len(best) > len(bc.chain):
-                    bc.chain = best
+                        
+                if best_chain and len(best_chain) > len(bc.chain):
+                    bc.chain = best_chain
                     print(f"[Listener] Synced to length {len(bc.chain)}")
             conn.close()
 
@@ -101,7 +117,9 @@ if __name__ == "__main__":
 
     # 3) Initial sync to longest chain
     peers = fetch_peers(tracker_host, tracker_port, self_id)
-    best = bc.chain
+    best_chain = None
+    best_length = len(bc.chain)
+
     for p in peers:
         host, ps = p.split(':')
         try:
@@ -110,13 +128,19 @@ if __name__ == "__main__":
                 s2.sendall(b"GETCHAIN\n")
                 data = s2.recv(65536).decode().strip()
             if data.startswith("CHAIN "):
-                cl = json.loads(data[len("CHAIN "):])
-                if len(cl) > len(best):
-                    best = [Block(**d) for d in cl]
-        except:
+                chain_data = json.loads(data[len("CHAIN "):])
+                candidate = [Block(**d) for d in chain_data]
+                
+                # Check if this is a valid chain with no duplicate position hashes
+                if len(candidate) > best_length and bc.is_valid_chain(candidate):
+                    best_chain = candidate
+                    best_length = len(candidate)
+        except Exception as e:
+            print(f"[Startup] Error syncing with {p}: {e}")
             continue
-    if len(best) > len(bc.chain):
-        bc.chain = best
+
+    if best_chain and len(best_chain) > len(bc.chain):
+        bc.chain = best_chain
         print(f"[Startup] Synced to length {len(bc.chain)}")
 
     # 4) Configure your AI agent

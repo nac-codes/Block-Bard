@@ -3,6 +3,7 @@ import os
 import socket
 import json
 from flask import Flask, jsonify, send_from_directory
+import hashlib
 
 # Configuration
 TRACKER_HOST = '127.0.0.1'
@@ -43,6 +44,19 @@ def fetch_chain_from_peer(peer):
         pass
     return []
 
+def find_position_data(position_hash, all_blocks):
+    """Try to find position data in blocks with matching position hash."""
+    for block in all_blocks:
+        if block.get('position_hash') == position_hash:
+            # Reverse-lookup position data
+            for verse in range(1, 100):
+                test_data = {"book": 1, "chapter": 1, "verse": verse}
+                test_json = json.dumps(test_data, sort_keys=True)
+                test_hash = hashlib.sha256(test_json.encode()).hexdigest()
+                if test_hash == position_hash:
+                    return test_data
+    return None
+
 @app.route('/')
 def index():
     # Serve the static HTML
@@ -54,8 +68,16 @@ def chain():
     if not peers:
         return jsonify([])
     # Pick first peer to fetch the chain
-    chain = fetch_chain_from_peer(peers[0])
-    return jsonify(chain)
+    chain_data = fetch_chain_from_peer(peers[0])
+    
+    # Try to find position data for each block
+    for block in chain_data:
+        if 'position_hash' in block:
+            position = find_position_data(block['position_hash'], chain_data)
+            if position:
+                block.update(position)
+    
+    return jsonify(chain_data)
 
 if __name__ == '__main__':
     # Run on port 5000

@@ -6,30 +6,69 @@
   <style>
     body { font-family: sans-serif; padding: 2rem; }
     li { margin-bottom: 0.5rem; }
+    .position { color: #666; font-size: 0.9em; margin-left: 0.5rem; }
+    .story-container { max-width: 800px; margin: 0 auto; }
+    .block-info { font-size: 0.8em; color: #888; margin-bottom: 0.25rem; }
+    .block-content { font-size: 1.1em; margin-bottom: 1rem; }
   </style>
 </head>
 <body>
-  <h1>Block-Bard Story</h1>
-  <button onclick="loadChain()">Refresh</button>
-  <ul id="story"></ul>
+  <div class="story-container">
+    <h1>Block-Bard Story</h1>
+    <button onclick="loadChain()">Refresh</button>
+    <div id="story"></div>
+  </div>
 
   <script>
     async function loadChain() {
       try {
         const res = await fetch('/chain');
         const chain = await res.json();
-        const ul = document.getElementById('story');
-        ul.innerHTML = '';
+        const storyDiv = document.getElementById('story');
+        storyDiv.innerHTML = '';
+        
         if (!chain.length) {
-          ul.innerHTML = '<li><em>No blocks yet</em></li>';
+          storyDiv.innerHTML = '<p><em>No blocks yet</em></p>';
           return;
         }
-        chain.forEach(block => {
-          const li = document.createElement('li');
+        
+        // Sort blocks by book, chapter, verse if position data exists
+        const sortedChain = [...chain].sort((a, b) => {
+          // First by index if no position data
+          if (!a.verse || !b.verse) return a.index - b.index;
+          
+          // Then by book, chapter, verse
+          if (a.book !== b.book) return a.book - b.book;
+          if (a.chapter !== b.chapter) return a.chapter - b.chapter;
+          return a.verse - b.verse;
+        });
+        
+        sortedChain.forEach(block => {
+          const blockDiv = document.createElement('div');
+          blockDiv.className = 'block';
+          
+          // Block metadata
+          const infoDiv = document.createElement('div');
+          infoDiv.className = 'block-info';
           const author = block.author || 'system';
-          const content = block.data;
-          li.textContent = `#${block.index} (${author}): ${content}`;
-          ul.appendChild(li);
+          
+          let positionText = '';
+          if (block.verse) {
+            positionText = ` | Book ${block.book}, Chapter ${block.chapter}, Verse ${block.verse}`;
+          } else if (block.position_hash) {
+            positionText = ` | Position: ${block.position_hash.substring(0, 8)}...`;
+          }
+          
+          infoDiv.textContent = `#${block.index} (${author})${positionText}`;
+          
+          // Block content
+          const contentDiv = document.createElement('div');
+          contentDiv.className = 'block-content';
+          contentDiv.textContent = block.data;
+          
+          blockDiv.appendChild(infoDiv);
+          blockDiv.appendChild(contentDiv);
+          storyDiv.appendChild(blockDiv);
         });
       } catch (e) {
         console.error(e);

@@ -1,5 +1,6 @@
 import hashlib
 import time
+import json
 
 class Block:
     def __init__(self,
@@ -9,13 +10,15 @@ class Block:
                  author=None,
                  timestamp=None,
                  nonce=0,
-                 hash=None):
+                 hash=None,
+                 position_hash=None):
         self.index = index
         self.timestamp = timestamp if timestamp is not None else time.time()
-        self.data = data            # original “payload” for tests
+        self.data = data            # original "payload" for tests
         self.author = author        # optional, for demo
         self.previous_hash = previous_hash
         self.nonce = nonce
+        self.position_hash = position_hash
 
         # Use provided hash (from network sync or tests), else compute
         if hash:
@@ -33,6 +36,7 @@ class Block:
                 f"{self.author}"
                 f"{self.previous_hash}"
                 f"{self.nonce}"
+                f"{self.position_hash}"
             )
         else:
             # test‐compatible payload (no author)
@@ -42,11 +46,12 @@ class Block:
                 f"{self.data}"
                 f"{self.previous_hash}"
                 f"{self.nonce}"
+                f"{self.position_hash}"
             )
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def to_dict(self):
-        # Always include ‘data’ for your tests.
+        # Always include 'data' for your tests.
         d = {
             "index": self.index,
             "timestamp": self.timestamp,
@@ -55,7 +60,9 @@ class Block:
             "nonce": self.nonce,
             "hash": self.hash,
         }
-        # Only include author if set
+        # Only include author and position_hash if set
         if self.author is not None:
             d["author"] = self.author
+        if self.position_hash is not None:
+            d["position_hash"] = self.position_hash
         return d

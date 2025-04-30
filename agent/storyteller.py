@@ -6,14 +6,11 @@ import logging
 from openai import OpenAI
 from typing import List, Dict, Any, Tuple, Optional, Union
 
-from agent.preferences import AgentPreferences
-from agent.styles import DEFAULT_STYLES
 from agent.story_config import load_schema
 from agent.schema_utils import create_pydantic_model_from_schema
 
 class StoryTeller:
-    def __init__(self, prefs: AgentPreferences, schema_name_or_path="bible", api_key=None, system_prompt=None):
-        self.prefs = prefs
+    def __init__(self, schema_name_or_path="bible", api_key=None, system_prompt=None):
         self.schema = load_schema(schema_name_or_path)
         
         # Set up logging
@@ -37,7 +34,7 @@ class StoryTeller:
 
     def _load_system_prompt(self, system_prompt):
         """Load system prompt from file path or use provided string"""
-        default_prompt = "You are a creative AI storyteller who responds with structured story content."
+        default_prompt = "You are a creative AI who responds with structured content."
         
         if not system_prompt:
             return default_prompt
@@ -58,27 +55,18 @@ class StoryTeller:
 
     def _build_prompt(self, context: List[str], chain=None, node_id=None) -> str:
         """
-        Build a prompt for the AI model using the story context and schema,
-        allowing full creativity in position choice
+        Build a prompt for the AI model using the context and schema
         """
         # Get last few entries for conciseness
         last_lines = "\n".join(context[-3:]) if context else "No previous entries."
         
-        # Extract themes and characters from preferences
-        themes = ", ".join(self.prefs.themes)
-        chars = ", ".join(self.prefs.characters)
-        
         # Start building prompt
-        prompt = (
-            f"Continue this collaborative story.\n\n"
-            f"Previous content:\n{last_lines}\n\n"
-            f"Themes: {themes}\n"
-            f"Characters: {chars}\n\n"
-        )
+        prompt = f"Continue the content based on previous entries.\n\n"
+        prompt += f"Previous content:\n{last_lines}\n\n"
         
-        # Add information about all available story positions
+        # Add information about all available positions
         if chain and len(chain) > 1:  # Skip if only genesis block
-            prompt += "Story structure so far (you can branch from any of these):\n"
+            prompt += "Content structure so far (you can branch from any of these):\n"
             positions_found = []
             
             # Get the last 1000 blocks maximum, from newest to oldest
@@ -100,9 +88,12 @@ class StoryTeller:
                     continue
             
             if not positions_found:
-                prompt += "No structured positions found. You can create the first one.\n"
+                prompt += "No structured positions found. You should create the first position (Genesis 1:1).\n"
             
             prompt += "\n"
+        else:
+            # If this is the first content, explicitly direct it to start with Genesis 1:1
+            prompt += "You should start with Genesis 1:1.\n\n"
         
         # Add node ID information
         if node_id:
@@ -113,10 +104,10 @@ class StoryTeller:
         prompt += "IMPORTANT INSTRUCTIONS:\n"
         prompt += "1. You MUST include both 'storyPosition' and 'previousPosition' in your response.\n"
         prompt += "2. 'storyPosition' should be a NEW unique position that doesn't exist yet.\n"
-        prompt += "3. 'previousPosition' should reference an EXISTING position from the story that you're continuing from.\n"
-        prompt += "4. If this is the first content, you can make up a starting position and set previousPosition to null.\n"
-        prompt += "5. You have COMPLETE CREATIVE FREEDOM to determine positions - they don't have to follow a sequential order.\n"
-        prompt += "6. You can branch from ANY previous position to create alternate storylines.\n"
+        prompt += "3. 'previousPosition' should reference an EXISTING position from the content that you're continuing from.\n"
+        prompt += "4. If this is the first content, use the position structure {\"book\": \"Genesis\", \"chapter\": 1, \"verse\": 1} and set previousPosition to null.\n"
+        prompt += "5. Position should reflect the logical structure of the content (book, chapter, verse).\n"
+        prompt += "6. You can branch from any previous position if there's a logical reason to create an alternate version.\n"
         
         return prompt
 
@@ -138,7 +129,7 @@ class StoryTeller:
 
     def generate(self, context: List[str], chain=None, node_id=None) -> Tuple[str, Dict, Optional[Dict]]:
         """
-        Generate next story content, letting the AI determine position and previous position
+        Generate next content, letting the AI determine position and previous position
         Returns (content_json, position_dict, previous_position_dict)
         
         Args:
@@ -147,9 +138,8 @@ class StoryTeller:
             node_id: ID of the current node (for competition awareness)
         """
         prompt = self._build_prompt(context, chain, node_id)
-        style = DEFAULT_STYLES.get(self.prefs.writing_style, {})
         
-        self.logger.debug("Calling OpenAI API to generate story content")
+        self.logger.debug("Calling OpenAI API to generate content")
         
         # Use the model parsing approach for structured data
         try:
@@ -181,5 +171,5 @@ class StoryTeller:
             return json_response, position, prev_position
             
         except Exception as e:
-            self.logger.error(f"Failed to generate valid story content: {e}")
-            raise ValueError(f"Failed to generate valid story content: {e}")
+            self.logger.error(f"Failed to generate valid content: {e}")
+            raise ValueError(f"Failed to generate valid content: {e}")

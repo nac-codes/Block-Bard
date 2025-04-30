@@ -24,7 +24,7 @@
     },
     "storyPosition": {
       "type": "object",
-      "description": "The position in the story structure",
+      "description": "The bible position",
       "required": ["book", "chapter", "verse"],
       "properties": {
         "book": {"type": "string"},
@@ -34,7 +34,7 @@
     },
     "previousPosition": {
       "type": "object",
-      "description": "The previous position this story segment continues from",
+      "description": "The previous position that this block continues from",
       "required": ["book", "chapter", "verse"],
       "properties": {
         "book": {"type": "string"},

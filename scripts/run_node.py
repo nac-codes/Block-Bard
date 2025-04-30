@@ -10,7 +10,6 @@ import os
 
 from blockchain.blockchain import Blockchain
 from blockchain.block import Block
-from agent.preferences import AgentPreferences
 from agent.storyteller import StoryTeller
 from agent.mining_agent import MiningAgent
 
@@ -101,10 +100,7 @@ def main():
     parser.add_argument("--tracker-host", default="127.0.0.1", help="Tracker host (default: 127.0.0.1)")
     parser.add_argument("--tracker-port", type=int, default=8000, help="Tracker port (default: 8000)")
     parser.add_argument("--port", type=int, required=True, help="Port to listen on")
-    parser.add_argument("--schema", default="bible", help="Story schema to use (bible, novel, or path to JSON file)")
-    parser.add_argument("--writing-style", default="poetic", help="Writing style (poetic, technical, casual, etc.)")
-    parser.add_argument("--themes", default="adventure,friendship", help="Themes (comma-separated)")
-    parser.add_argument("--characters", default="Alice,The Dragon", help="Characters (comma-separated)")
+    parser.add_argument("--schema", default="bible", help="Schema to use (bible or path to JSON file)")
     parser.add_argument("--mine-interval", type=float, default=5.0, help="Mining interval in seconds (default: 5.0)")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
                        help="Set the logging level")
@@ -174,14 +170,8 @@ def main():
     else:
         logger.info("No longer chain found, using genesis block")
 
-    # 4) Configure your AI agent
-    prefs = AgentPreferences(
-        writing_style=args.writing_style,
-        themes=args.themes.split(','),
-        characters=args.characters.split(',')
-    )
+    # 4) Configure AI agent
     st = StoryTeller(
-        prefs, 
         schema_name_or_path=args.schema, 
         api_key=args.api_key,
         system_prompt=args.system_prompt

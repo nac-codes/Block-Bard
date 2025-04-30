@@ -1,6 +1,6 @@
 # Block-Bard: A Collaborative Blockchain Storytelling Platform
 
-Block-Bard allows multiple AI nodes to collaboratively create stories on a blockchain, with support for branching narratives and different writing styles.
+ Block-Bard allows multiple AI nodes to collaboratively create content on a blockchain, with support for branching narratives.
 
 ## Prerequisites
 
@@ -21,16 +21,46 @@ Block-Bard allows multiple AI nodes to collaboratively create stories on a block
 python3 -m unittest discover -v tests
 ```
 
+## Quick Start
+
+```bash
+# Start the tracker
+python3 -m scripts.run_tracker
+
+# Start the nodes
+python3 scripts/run_node.py --port 50001 --schema novel --system-prompt example_system_prompt.txt
+
+python3 scripts/run_node.py --port 50002 --schema novel --system-prompt example_system_prompt.txt
+
+# View the results in the web UI
+./scripts/run_web_dev.sh
+```
+
 ## Web UI
 
-1. Start the Flask server:
-   ```bash
-   python3 scripts/run_server.py --port 60000
-   ```
-2. Open your browser to:
-   ```
-   http://<host>:60000/
-   ```
+Start the Flask server:
+```bash
+python3 scripts/run_server.py --port 60000
+```
+
+Open your browser to:
+```
+http://<host>:60000/
+```
+
+For development with React:
+```bash
+# Start the Flask API server
+python3 scripts/run_server.py --port 60000
+
+# In another terminal, start the React development server
+cd web/react-app && npm start
+```
+
+Or use the shortcut:
+```bash
+./scripts/run_web_dev.sh
+```
 
 ## Autonomous AI-Agent Mode
 
@@ -38,10 +68,9 @@ python3 -m unittest discover -v tests
    ```bash
    python3 -m scripts.run_tracker
    ```
-2. In separate terminals, start AI nodes with various configurations:
+2. In separate terminals, start AI nodes:
    ```bash
-   python3 scripts/run_node.py --port 50000 --schema bible --writing-style biblical
-   python3 scripts/run_node.py --port 50001 --schema novel --writing-style adventure
+   python3 scripts/run_node.py --port 50001 --schema bible --system-prompt catholic_prompt.txt
    ```
 
 ### Command-Line Options
@@ -50,104 +79,61 @@ python3 -m unittest discover -v tests
 --tracker-host     Tracker host (default: 127.0.0.1)
 --tracker-port     Tracker port (default: 8000)
 --port             Port for this node to listen on (required)
---schema           Story schema to use (bible, novel, poetry, or path to JSON file)
---writing-style    Writing style (poetic, technical, biblical, etc.)
---themes           Themes, comma-separated (e.g., "adventure,friendship")
---characters       Characters, comma-separated (e.g., "Alice,Bob")
+--schema           Schema to use (bible or path to JSON file)
 --mine-interval    Mining interval in seconds (default: 5.0)
 --system-prompt    System prompt for AI personality (filepath or direct text)
 --api-key          OpenAI API key (defaults to OPENAI_API_KEY environment variable)
 --log-level        Set logging level (DEBUG, INFO, WARNING, ERROR)
 ```
 
-## Example: Multiple Biblical Translations
+## Example: Biblical Translations with Different Perspectives
 
-This example demonstrates how to set up three nodes that represent different biblical traditions, each with a unique theological perspective. They'll collaboratively recreate the Bible, but with their own interpretational differences.
+Run three nodes with different theological perspectives:
 
-### Step 1: Create System Prompts for Each Tradition
-
-Create three files with prompts for each tradition:
-
-**catholic_prompt.txt**
-```
-You are a Catholic biblical scholar creating a translation of the Bible. You should:
-1. Include all 73 books of the Catholic Bible, including the deuterocanonical works
-2. Emphasize Church tradition and magisterial authority in your interpretations
-3. Include references to the saints and Church Fathers when appropriate
-4. Present a translation that aligns with Catholic doctrine on topics like grace, works, and salvation
-5. Use traditional Catholic terminology where appropriate (e.g., "Holy Ghost" rather than just "Spirit")
-```
-
-**protestant_prompt.txt**
-```
-You are a Protestant biblical scholar creating a translation of the Bible. You should:
-1. Focus on the 66 books of the Protestant canon
-2. Emphasize sola scriptura (scripture alone) and the primacy of biblical text
-3. Present interpretations consistent with Protestant views on salvation by faith alone
-4. Use accessible, contemporary language where possible
-5. Include footnotes explaining difficult passages from a Protestant perspective
-```
-
-**orthodox_prompt.txt**
-```
-You are an Eastern Orthodox biblical scholar creating a translation of the Bible. You should:
-1. Include the complete Orthodox canon of Scripture
-2. Present interpretations consistent with Orthodox tradition and patristic teachings
-3. Emphasize theosis, mystery, and the mystical elements of faith
-4. Use language that reflects Orthodox liturgical traditions
-5. Include elements that reflect the Orthodox understanding of Church history
-```
-
-### Step 2: Run the Nodes
-
-Start the tracker:
 ```bash
+# Start the tracker
 python3 -m scripts.run_tracker
+
+# Start Catholic node
+python3 scripts/run_node.py --port 50001 --schema bible --system-prompt catholic_prompt.txt
+
+# Start Protestant node
+python3 scripts/run_node.py --port 50002 --schema bible --system-prompt protestant_prompt.txt
+
+# Start Orthodox node
+python3 scripts/run_node.py --port 50003 --schema bible --system-prompt orthodox_prompt.txt
+
+# View results in the web UI
+./scripts/run_web_dev.sh
 ```
 
-Start the Catholic node:
-```bash
-python3 scripts/run_node.py --port 50001 --schema bible --writing-style biblical \
-  --system-prompt catholic_prompt.txt \
-  --characters "Jesus,Apostles,Saints,Church Fathers" \
-  --themes "salvation,tradition,authority"
-```
+## Using Custom System Prompts and Schemas
 
-Start the Protestant node:
-```bash
-python3 scripts/run_node.py --port 50002 --schema bible --writing-style biblical \
-  --system-prompt protestant_prompt.txt \
-  --characters "Jesus,Apostles,Reformers" \
-  --themes "faith,grace,scripture"
-```
+### Custom System Prompt
 
-Start the Orthodox node:
-```bash
-python3 scripts/run_node.py --port 50003 --schema bible --writing-style biblical \
-  --system-prompt orthodox_prompt.txt \
-  --characters "Jesus,Apostles,Church Fathers" \
-  --themes "theosis,mystery,liturgy"
-```
+1. Create a text file with your prompt:
+   ```
+   You are a [your role] creating a [your content type]. Your task is to:
+   1. [instruction 1]
+   2. [instruction 2]
+   ...
+   ```
 
-### Step 3: View the Results
+2. Run a node using your prompt:
+   ```bash
+   python3 scripts/run_node.py --port 50001 --schema bible --system-prompt /path/to/your_prompt.txt
+   ```
 
-Start the web server:
-```bash
-python3 scripts/run_server.py --port 60000
-```
+### Custom Schema
 
-Open your browser to `http://localhost:60000` to see the collaborative Bible taking shape. You'll notice how nodes may:
+1. Copy a template schema:
+   ```bash
+   cp schemas/template.json schemas/my_custom_schema.json
+   ```
 
-1. Create different translations of the same verses
-2. Branch when theological differences arise
-3. Emphasize different aspects based on their tradition
-4. Include or exclude certain books based on their canon
+2. Edit the schema to define your content structure
 
-This demonstrates Block-Bard's ability to handle collaborative storytelling with competing perspectives and branching narratives.
-
-## Creating Custom Schemas
-
-You can create custom story structures by:
-1. Copying `schemas/template.json` to a new file
-2. Modifying the JSON schema to define your story structure
-3. Running a node with `--schema /path/to/your/custom_schema.json`
+3. Run a node with your schema:
+   ```bash
+   python3 scripts/run_node.py --port 50001 --schema /path/to/my_custom_schema.json --system-prompt /path/to/your_prompt.txt
+   ```

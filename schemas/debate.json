@@ -1,0 +1,61 @@
+{
+  "type": "object",
+  "required": ["Content", "Author", "DebateType", "Position", "Evidence", "storyPosition"],
+  "properties": {
+    "Content": {
+      "type": "string", 
+      "description": "The main content of the debate contribution"
+    },
+    "Author": {
+      "type": "string", 
+      "description": "The identifier of the contributing historian (Cassius, Claudia, or Titus)"
+    },
+    "DebateType": {
+      "type": "string",
+      "description": "The type of debate contribution (POINT, EVIDENCE, COUNTER, CONCESSION, PROPOSAL)",
+      "enum": ["ECONOMIC_POINT", "ECONOMIC_EVIDENCE", "ECONOMIC_COUNTER", "ECONOMIC_CONCESSION", "ECONOMIC_PROPOSAL",
+               "CULTURAL_POINT", "CULTURAL_EVIDENCE", "CULTURAL_COUNTER", "CULTURAL_CONCESSION", "CULTURAL_PROPOSAL",
+               "MILITARY_POINT", "MILITARY_EVIDENCE", "MILITARY_COUNTER", "MILITARY_CONCESSION", "MILITARY_PROPOSAL"]
+    },
+    "Position": {
+      "type": "string",
+      "description": "The specific position or argument being made"
+    },
+    "Evidence": {
+      "type": "string",
+      "description": "Supporting evidence or examples for the position"
+    },
+    "TargetArgument": {
+      "type": "string",
+      "description": "The specific argument being countered or conceded (for COUNTER and CONCESSION types)"
+    },
+    "ProposedTopic": {
+      "type": "string",
+      "description": "The new topic proposed for discussion (for PROPOSAL type)"
+    },
+    "HistoricalPeriod": {
+      "type": "string",
+      "description": "The specific historical period being discussed (e.g., 'Crisis of the Third Century', 'Late Empire')"
+    },
+    "storyPosition": {
+      "type": "object",
+      "description": "The position in the debate structure",
+      "required": ["debateId", "threadId", "sequence"],
+      "properties": {
+        "debateId": {"type": "string"},
+        "threadId": {"type": "string"},
+        "sequence": {"type": "integer"}
+      }
+    },
+    "previousPosition": {
+      "type": "object",
+      "description": "The previous position this debate contribution continues from",
+      "required": ["debateId", "threadId", "sequence"],
+      "properties": {
+        "debateId": {"type": "string"},
+        "threadId": {"type": "string"},
+        "sequence": {"type": "integer"}
+      }
+    }
+  }
+} 

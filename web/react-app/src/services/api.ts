@@ -110,18 +110,47 @@ export const fetchBlockchain = async (): Promise<Block[]> => {
 export const formatPosition = (position?: Position): string => {
   if (!position) return 'Unknown';
   
-  // For bible schema
-  if (position.book !== undefined && position.chapter !== undefined && position.verse !== undefined) {
-    return `${position.book} ${position.chapter}:${position.verse}`;
-  }
+  // Generic position formatter that works for any schema
+  const entries = Object.entries(position);
   
-  // For novel schema
-  if (position.title !== undefined && position.chapter !== undefined && position.section !== undefined) {
-    return `${position.title} Ch.${position.chapter} §${position.section}`;
-  }
+  // Skip internal properties or empty values
+  const validEntries = entries.filter(([key, value]) => {
+    return key !== 'id' && 
+           value !== undefined && 
+           value !== null && 
+           value !== '' &&
+           !key.startsWith('_');
+  });
   
-  // Generic display
-  return JSON.stringify(position);
+  if (validEntries.length === 0) return 'Unknown';
+  
+  // Format each entry based on its type and create a human-readable representation
+  const formattedParts = validEntries.map(([key, value]) => {
+    // For numeric values, just show the value
+    if (typeof value === 'number') {
+      return `${value}`;
+    }
+    
+    // For simple string values, just show the value
+    if (typeof value === 'string' && !value.startsWith('{')) {
+      return `${value}`;
+    }
+    
+    // For boolean values
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+    
+    // For objects, try to format them nicely
+    if (typeof value === 'object' && value !== null) {
+      return `${key}: ${JSON.stringify(value)}`;
+    }
+    
+    // Default case
+    return `${key}: ${value}`;
+  });
+  
+  return formattedParts.join(' · ');
 };
 
 export const getPositionKey = (position?: Position): string => {

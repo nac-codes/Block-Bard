@@ -5,11 +5,13 @@ import json
 from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 import hashlib
+import time
 
 # Configuration
 TRACKER_HOST = '127.0.0.1'
 TRACKER_PORT = 8000
-PEER_FETCH_TIMEOUT = 2  # seconds
+PEER_FETCH_TIMEOUT = 10  # Increased from 2 to 10 seconds
+PEER_CONNECT_TIMEOUT = 3  # Added separate connection timeout
 
 # Paths
 BASE_DIR = os.path.dirname(__file__)
@@ -23,46 +25,129 @@ def fetch_peers():
     """Ask the tracker for current peer list."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(PEER_FETCH_TIMEOUT)
+            s.settimeout(PEER_CONNECT_TIMEOUT)
             s.connect((TRACKER_HOST, TRACKER_PORT))
             s.sendall(b"GETPEERS\n")
             data = s.recv(4096).decode().strip()
-        return [p for p in data.splitlines()]
-    except Exception:
+        # Convert hostnames to IP addresses
+        peers = []
+        for peer in data.splitlines():
+            host, port = peer.split(':')
+            try:
+                # Try to resolve hostname to IP
+                ip = socket.gethostbyname(host)
+                peers.append(f"{ip}:{port}")
+            except socket.gaierror:
+                # If resolution fails, use the original hostname
+                peers.append(peer)
+        return peers
+    except Exception as e:
+        print(f"Error fetching peers: {e}")
         return []
 
 def fetch_chain_from_peer(peer):
     """GETCHAIN from one peer, return list of block‐dicts."""
     host, port_s = peer.split(':')
     port = int(port_s)
+    
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(PEER_FETCH_TIMEOUT)
+            # Set socket options for better reliability
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            
+            # Set buffer sizes
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)  # 1MB receive buffer
+            
+            print(f"Connecting to {host}:{port}")
+            s.settimeout(PEER_CONNECT_TIMEOUT)  # Use shorter timeout for connection
             s.connect((host, port))
+            
+            print(f"Connected to {host}:{port}, sending GETCHAIN")
             s.sendall(b"GETCHAIN\n")
             
-            # Read data in chunks to handle large blockchains
+            # After connection, set longer timeout for data receipt
+            s.settimeout(PEER_FETCH_TIMEOUT)
+            
+            # Read the response in chunks
             chunks = []
-            while True:
-                chunk = s.recv(8192)  # 8KB chunks
+            start_time = time.time()
+            total_bytes = 0
+            
+            # First, try to read the initial "CHAIN " prefix
+            prefix = b""
+            while len(prefix) < 6:  # "CHAIN " is 6 bytes
+                chunk = s.recv(6 - len(prefix))
                 if not chunk:
-                    break
-                chunks.append(chunk)
+                    print(f"Connection closed by {peer} while reading prefix")
+                    return []
+                prefix += chunk
+            
+            if prefix != b"CHAIN ":
+                print(f"Invalid response prefix from {peer}: {prefix}")
+                return []
+            
+            print(f"Got CHAIN prefix from {peer}, reading data...")
+            
+            # Now read the actual chain data
+            while True:
+                try:
+                    chunk = s.recv(65536)  # 64KB chunks
+                    if not chunk:
+                        print(f"Connection closed by {peer}, total received: {total_bytes} bytes")
+                        break
+                    
+                    chunks.append(chunk)
+                    total_bytes += len(chunk)
+                    
+                    # Print progress for large chains
+                    if total_bytes > 1024*1024:  # 1MB
+                        print(f"Received {total_bytes/1024/1024:.2f}MB from {peer}")
+                    
+                    # Safety check for too much data (100MB limit)
+                    if total_bytes > 100 * 1024 * 1024:
+                        print(f"Response too large from {peer}: {total_bytes/1024/1024:.2f}MB")
+                        break
+                        
+                    # Safety check for timeout
+                    if time.time() - start_time > PEER_FETCH_TIMEOUT:
+                        print(f"Timeout receiving data from {peer}")
+                        break
                 
-                # Check if we've reached the end of the data (assuming \n ends the message)
-                if chunk.endswith(b'\n'):
+                except socket.timeout:
+                    # Timeout occurred, but we might have received enough data
+                    print(f"Socket timeout receiving data from {peer}, but received {total_bytes} bytes")
+                    break
+                except Exception as e:
+                    print(f"Error receiving data from {peer}: {e}")
                     break
             
-            # Combine all chunks and process
-            full_data = b''.join(chunks).decode().strip()
-            if full_data.startswith("CHAIN "):
+            # Process the data only if we received something
+            if chunks:
+                full_data = b''.join(chunks)
+                
+                # Print some debug info
+                print(f"Received {len(full_data)/1024:.2f}KB from {peer} in {time.time()-start_time:.2f}s")
+                
+                # Try to decode and parse the JSON
                 try:
-                    return json.loads(full_data[len("CHAIN "):])
+                    chain_json = full_data.decode().strip()
+                    chain_data = json.loads(chain_json)
+                    print(f"Successfully parsed chain data with {len(chain_data)} blocks")
+                    return chain_data
+                except UnicodeDecodeError as e:
+                    print(f"Error decoding response from {peer}: {e}")
                 except json.JSONDecodeError as e:
-                    print(f"Error decoding JSON from peer {peer}: {e}")
-                    print(f"Received data length: {len(full_data)} bytes")
+                    print(f"Error parsing JSON from {peer}: {e}")
+                    print(f"First 100 chars: {full_data[:100]}")
+    
+    except ConnectionRefusedError:
+        print(f"Connection refused by {peer}")
+    except socket.timeout:
+        print(f"Timeout connecting to {peer}")
     except Exception as e:
         print(f"Error fetching chain from {peer}: {e}")
+    
     return []
 
 def find_position_data(position_hash, all_blocks):
@@ -86,10 +171,23 @@ def chain():
     
     peers = fetch_peers()
     if not peers:
+        print("No peers found to fetch chain from")
         return jsonify([])
+    
+    print(f"Found {len(peers)} peers: {peers}")
+    
+    # Try multiple peers until we get a valid chain
+    chain_data = []
+    for peer in peers:
+        print(f"Trying to fetch chain from {peer}")
+        peer_chain = fetch_chain_from_peer(peer)
         
-    # Pick first peer to fetch the chain
-    chain_data = fetch_chain_from_peer(peers[0])
+        if peer_chain and len(peer_chain) > 0:
+            print(f"Successfully fetched chain with {len(peer_chain)} blocks from {peer}")
+            chain_data = peer_chain
+            break
+        else:
+            print(f"Failed to fetch chain from {peer}")
     
     # Apply pagination if requested
     if per_page > 0 and len(chain_data) > 0:
@@ -101,7 +199,8 @@ def chain():
         end_idx = min(end_idx, len(chain_data))
         
         chain_data = chain_data[start_idx:end_idx]
-        
+    
+    print(f"Returning {len(chain_data)} blocks")
     return jsonify(chain_data)
 
 # Serve React App for any other routes

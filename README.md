@@ -35,20 +35,24 @@ python3 scripts/run_node.py --port 50002 --schema novel --system-prompt example_
 # View the results in the web UI
 ./scripts/run_web_dev.sh
 ```
+If have problems running due to module conflicts, try:
+```bash
+# do 
+PYTHONPATH=PATH_TO_PROJECT_ROOT python3 (continue as usual)
+```
 
 ## Web UI
 
-Start the Flask server:
-```bash
-python3 scripts/run_server.py --port 60000
+Before starting, build the react-app
 ```
-
+cd web/react-app
+npm run build
+```
 Open your browser to:
 ```
-http://<host>:60000/
+http://localhost:60000
 ```
-
-For development with React:
+Then do:
 ```bash
 # Start the Flask API server
 python3 scripts/run_server.py --port 60000
@@ -56,7 +60,6 @@ python3 scripts/run_server.py --port 60000
 # In another terminal, start the React development server
 cd web/react-app && npm start
 ```
-
 Or use the shortcut:
 ```bash
 ./scripts/run_web_dev.sh

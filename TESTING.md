@@ -26,9 +26,16 @@ This document describes the tests we run to verify blockchain resilience, fork h
 - **Description:** Simulate two nodes that each mine block #1 on different branches, then one mines block #2.  
 - **Expectation:** The “losing” node rejects block #2 on its branch, then `resolve_conflicts(...)` replaces its chain with the longer one.
 
-## 7. Peer-to-peer network (`test_peer_registration_and_discovery`)
-- **Description:** Start a `Tracker`, have three peers send `JOIN host:port`, then send `GETPEERS`.  
-- **Expectation:** `GETPEERS` returns exactly those three peer addresses.
+## 7. Peer-to-peer network and dynamic peer list (`test_peer_registration_and_discovery`)
+- **Description:**  
+  1. Start a `Tracker`.  
+  2. Have three peers send `JOIN <host:port>`.  
+  3. Send `GETPEERS` and verify it returns those three addresses.  
+  4. Have one of the peers send `LEAVE <host:port>`.  
+  5. Send `GETPEERS` again and verify it returns only the remaining two addresses.  
+- **Expectation:**  
+  - After the joins, `GETPEERS` returns exactly the three peer addresses.  
+  - After the leave, `GETPEERS` returns exactly the two remaining addresses.
 
 ## How to run all tests
 ```bash
@@ -37,6 +44,7 @@ python3 -m unittest discover -v tests
 
 ## Output of the test
 ```
+python3 -m unittest discover -v tests
 test_add_block_from_dict_accept (test_blockchain.TestBlockchain.test_add_block_from_dict_accept) ... [Blockchain] Adopting remote genesis hash
 [Blockchain] Appended block 1
 [Blockchain] Appended block 2
@@ -53,10 +61,11 @@ test_peer_registration_and_discovery (test_network.TestP2PNetwork.test_peer_regi
 [+] Registered peer: peer0.local:50000
 [+] Registered peer: peer1.local:50001
 [+] Registered peer: peer2.local:50002
+[-] Unregistered peer: peer1.local:50001
 ok
 
 ----------------------------------------------------------------------
-Ran 7 tests in 0.107s
+Ran 7 tests in 0.105s
 
 OK
 ```

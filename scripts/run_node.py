@@ -7,6 +7,7 @@ import time
 import argparse
 import logging
 import os
+import atexit
 
 from blockchain.blockchain import Blockchain
 from blockchain.block import Block
@@ -129,6 +130,13 @@ def main():
         s.connect((tracker_host, tracker_port))
         s.sendall(f"JOIN {self_id}\n".encode())
     logger.info(f"Registered with tracker at {tracker_host}:{tracker_port}")
+
+    # 1b) Unregister on clean exit
+    def unregister():
+        with socket.socket() as s:
+            s.connect((tracker_host, tracker_port))
+            s.sendall(f"LEAVE {self_id}\n".encode())
+    atexit.register(unregister)
 
     # 2) Start blockchain and listener
     bc = Blockchain(difficulty=2)

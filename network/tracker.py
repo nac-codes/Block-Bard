@@ -7,29 +7,49 @@ class Tracker:
         self.host = host
         self.port = port
         self.peers = set()
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     def start(self):
-        self.sock.bind((self.host, self.port))
-        self.sock.listen()
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.bind((self.host, self.port))
+        srv.listen()
         print(f"Tracker listening on {self.host}:{self.port}")
         while True:
-            conn, addr = self.sock.accept()
+            conn, _ = srv.accept()
+            # handle each request in its own thread
             threading.Thread(target=self.handle_peer, args=(conn,), daemon=True).start()
 
     def handle_peer(self, conn):
-        data = conn.recv(1024).decode().strip()
-        # If a peer wants the current list
-        if data == "GETPEERS":
-            resp = "\n".join(self.peers) + "\n"
-            conn.sendall(resp.encode())
-            conn.close()
-            return
+        """
+        Commands:
+          GETPEERS           → returns the current peer list, one per line
+          JOIN <peer_addr>   → adds peer_addr to the registry
+          LEAVE <peer_addr>  → removes peer_addr from the registry
+        """
+        try:
+            data = conn.recv(1024).decode().strip()
+            if not data:
+                return
 
-        # Otherwise we expect a JOIN message
-        if data.startswith("JOIN"):
-            _, peer_addr = data.split(maxsplit=1)
-            self.peers.add(peer_addr)
-            print(f"[+] Registered peer: {peer_addr}")
-        # no other commands
-        conn.close()
+            parts = data.split(maxsplit=1)
+            cmd = parts[0].upper()
+
+            # Return the full list of peers
+            if cmd == "GETPEERS":
+                resp = "\n".join(self.peers) + "\n"
+                conn.sendall(resp.encode())
+
+            # Register a new peer
+            elif cmd == "JOIN" and len(parts) == 2:
+                peer_addr = parts[1]
+                self.peers.add(peer_addr)
+                print(f"[+] Registered peer: {peer_addr}")
+
+            # Unregister a departing peer
+            elif cmd == "LEAVE" and len(parts) == 2:
+                peer_addr = parts[1]
+                if peer_addr in self.peers:
+                    self.peers.remove(peer_addr)
+                    print(f"[-] Unregistered peer: {peer_addr}")
+
+        finally:
+            conn.close()

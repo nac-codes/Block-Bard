@@ -4,6 +4,7 @@ import sys
 import threading
 import json
 import time
+import atexit
 
 from blockchain.blockchain import Blockchain
 from blockchain.block import Block
@@ -36,15 +37,14 @@ def listen_for_messages(port, bc, tracker_host, tracker_port, self_id):
         conn, _ = srv.accept()
         raw = conn.recv(8192).decode().strip()
 
-        # === CORRECTED GETCHAIN HANDLER ===
+        # GETCHAIN → reply on same connection
         if raw == "GETCHAIN":
             payload = json.dumps([blk.to_dict() for blk in bc.chain])
-            # Send the CHAIN response back on the same connection
             conn.sendall(f"CHAIN {payload}\n".encode())
             conn.close()
             continue
 
-        # Incoming BLOCK…
+        # BLOCK broadcast
         if raw.startswith("BLOCK "):
             blk = json.loads(raw[len("BLOCK "):])
             idx = blk["index"]
@@ -54,7 +54,7 @@ def listen_for_messages(port, bc, tracker_host, tracker_port, self_id):
                 bc.chain.append(Block(**blk))
                 print(f"[Listener] Appended block {idx}")
             else:
-                # out-of-order → full sync
+                # out-of-order: sync longest chain
                 print(f"[Listener] Out-of-order block {idx}; syncing…")
                 peers = fetch_peers(tracker_host, tracker_port, self_id)
                 best = bc.chain
@@ -68,7 +68,6 @@ def listen_for_messages(port, bc, tracker_host, tracker_port, self_id):
                     print(f"[Listener] Synced; new length={len(bc.chain)}")
                 else:
                     print("[Listener] No longer chain found.")
-
             conn.close()
 
 def broadcast_block(blk_dict, tracker_host, tracker_port, self_id):
@@ -92,19 +91,26 @@ if __name__ == "__main__":
         print("Usage: run_peer.py <tracker_host> <tracker_port> <my_port>")
         sys.exit(1)
 
-    tracker_host, tracker_port, my_port = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+    tracker_host, tracker_port, my_port = sys.argv[1], int(sys.argv[2]), sys.argv[3]
     self_id = f"{socket.gethostname()}:{my_port}"
 
-    # Register
+    # Register on join
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((tracker_host, tracker_port))
         s.sendall(f"JOIN {self_id}\n".encode())
 
-    # Start listener
+    # On exit, notify tracker
+    def unregister():
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((tracker_host, tracker_port))
+            s.sendall(f"LEAVE {self_id}\n".encode())
+    atexit.register(unregister)
+
+    # Start listener thread
     bc = Blockchain(difficulty=2)
     threading.Thread(
         target=listen_for_messages,
-        args=(my_port, bc, tracker_host, tracker_port, self_id),
+        args=(int(my_port), bc, tracker_host, tracker_port, self_id),
         daemon=True
     ).start()
     time.sleep(0.5)
@@ -121,7 +127,7 @@ if __name__ == "__main__":
         bc.chain = best
         print(f"[Startup] Synced chain length={len(bc.chain)}")
 
-    # Interactive demo loop
+    # Interactive shell
     print("\n===== Story Shell =====")
     print("Type any text to add a verse, 'show' to display story, or 'exit' to quit.\n")
 
@@ -132,17 +138,18 @@ if __name__ == "__main__":
             if cmd in ("exit", "quit"):
                 break
             if cmd == "show":
-                # print all story segments
                 for b in bc.chain:
                     auth = b.to_dict().get("author", "system")
                     print(f"#{b.index} ({auth}): {b.data}")
                 print()
                 continue
-            # Mine a new verse
+
+            # Mine & broadcast
             new_blk = bc.add_block({"content": line, "author": self_id})
             print(f"[Mined] #{new_blk.index} hash={new_blk.hash}")
             broadcast_block(new_blk.to_dict(), tracker_host, tracker_port, self_id)
             print(f"[Chain] length={len(bc.chain)}, latest={bc.get_latest_block().index}\n")
+
     except KeyboardInterrupt:
         pass
 

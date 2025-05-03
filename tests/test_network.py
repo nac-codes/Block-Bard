@@ -1,3 +1,5 @@
+# tests/test_network.py
+
 import unittest
 import threading
 import time
@@ -12,24 +14,36 @@ class TestP2PNetwork(unittest.TestCase):
         self.tracker = Tracker(host='127.0.0.1', port=self.tracker_port)
         self.thread = threading.Thread(target=self.tracker.start, daemon=True)
         self.thread.start()
-        # give it a moment to bind
-        time.sleep(0.1)
+        time.sleep(0.1)  # let it bind
 
     def test_peer_registration_and_discovery(self):
-        # Define three fake peers
+        # 1) JOIN three peers
         peers = [f'peer{i}.local:5000{i}' for i in range(3)]
-        # Each one sends a JOIN
         for p in peers:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            with socket.socket() as s:
                 s.connect(('127.0.0.1', self.tracker_port))
                 s.sendall(f'JOIN {p}\n'.encode())
-        # Now ask for GETPEERS
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+
+        # 2) GETPEERS should return all three
+        with socket.socket() as s:
             s.connect(('127.0.0.1', self.tracker_port))
             s.sendall(b'GETPEERS\n')
             data = s.recv(1024).decode().splitlines()
-        # The tracker should report exactly those peers
         self.assertCountEqual(data, peers)
+
+        # 3) LEAVE one peer
+        to_remove = peers[1]
+        with socket.socket() as s:
+            s.connect(('127.0.0.1', self.tracker_port))
+            s.sendall(f'LEAVE {to_remove}\n'.encode())
+
+        # 4) GETPEERS again should return the other two
+        with socket.socket() as s:
+            s.connect(('127.0.0.1', self.tracker_port))
+            s.sendall(b'GETPEERS\n')
+            data2 = s.recv(1024).decode().splitlines()
+        expected = [peers[0], peers[2]]
+        self.assertCountEqual(data2, expected)
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Set up PYTHONPATH
-export PYTHONPATH=$PYTHONPATH:/Users/chim/Working/computer_networks/block_bard_v3/Block-Bard
+# Set up PYTHONPATH, not necessary but useful
+# export PYTHONPATH=$PYTHONPATH:/Users/chim/Working/computer_networks/block_bard_v3/Block-Bard
 
 # Start the Flask server in the background
 echo "Starting Flask API server on port 60000..."

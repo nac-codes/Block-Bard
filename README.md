@@ -35,22 +35,36 @@ python3 scripts/run_node.py --port 50002 --schema novel --system-prompt example_
 # View the results in the web UI
 ./scripts/run_web_dev.sh
 ```
-If have problems running due to module conflicts, try:
+If have problems running due to module conflicts, try to add this in your `.env`, or
 ```bash
 # do 
-PYTHONPATH=PATH_TO_PROJECT_ROOT python3 (continue as usual)
+PYTHONPATH=PATH_TO_PROJECT_ROOT python3 (script you want to run)
 ```
 
 ## Web UI
 
 Before starting, build the react-app
 ```
+# if on a google vm and haven't installed npm, do
+sudo apt install npm
+# note, for successful build/run of the react-app, your node version needs to be >=18
+
+# then
 cd web/react-app
+npm install
 npm run build
 ```
 Open your browser to:
 ```
+# if you are not on a google VM, simply do
 http://localhost:60000
+
+# if on a google VM, then you would have to create a tunnel to forward the port between your VM and your local machine
+# Do this:
+gcloud compute ssh username@vm-instance --zone=VMs_ZONE -- -L 60000:localhost:60000 -L 3000:localhost:3000
+
+# Example:
+gcloud compute ssh user@instance-20250216-195125 --zone=us-central1-c -- -L 60000:localhost:60000 -L 3000:localhost:3000
 ```
 Then do:
 ```bash

@@ -44,18 +44,34 @@ python3 -m unittest discover -v tests
 
 ## Output of the test
 ```
-python3 -m unittest discover -v tests
-test_add_block_from_dict_accept (test_blockchain.TestBlockchain.test_add_block_from_dict_accept) ... [Blockchain] Adopting remote genesis hash
+(base) quocbui@quocm2max-223 Block-Bard % python3 -m unittest discover -v tests
+test_add_block_from_dict_accept (test_blockchain.TestBlockchain.test_add_block_from_dict_accept) ... [Difficulty ↑] Mined in 0.00s → difficulty = 2
+[Difficulty ↑] Mined in 0.00s → difficulty = 3
+[Blockchain] Adopting remote genesis hash
 [Blockchain] Appended block 1
 [Blockchain] Appended block 2
 ok
 test_add_block_from_dict_reject (test_blockchain.TestBlockchain.test_add_block_from_dict_reject) ... [Blockchain] Adopting remote genesis hash
 [Blockchain] Hash mismatch
 ok
-test_tamper_data (test_blockchain.TestBlockchain.test_tamper_data) ... ok
-test_tamper_pow (test_blockchain.TestBlockchain.test_tamper_pow) ... ok
+test_difficulty_increases_and_decreases (test_blockchain.TestBlockchain.test_difficulty_increases_and_decreases) ... [Difficulty ↑] Mined in 1.00s → difficulty = 3
+[Difficulty ↓] Mined in 12.00s → difficulty = 2
+ok
+test_dynamic_difficulty_adjusts (test_blockchain.TestBlockchain.test_dynamic_difficulty_adjusts) ... [Difficulty ↑] Mined in 0.00s → difficulty = 2
+[Difficulty ↑] Mined in 0.00s → difficulty = 3
+[Difficulty ↑] Mined in 0.00s → difficulty = 4
+[Difficulty ↑] Mined in 0.00s → difficulty = 5
+[Difficulty ↑] Mined in 0.00s → difficulty = 6
+ok
+test_tamper_data (test_blockchain.TestBlockchain.test_tamper_data) ... [Difficulty ↑] Mined in 0.00s → difficulty = 2
+ok
+test_tamper_pow (test_blockchain.TestBlockchain.test_tamper_pow) ... [Difficulty ↑] Mined in 0.00s → difficulty = 3
+ok
 test_valid_chain (test_blockchain.TestBlockchain.test_valid_chain) ... ok
-test_competing_miners (test_fork_resolution.TestForkResolution.test_competing_miners) ... [Blockchain] Previous hash does not match latest block
+test_competing_miners (test_fork_resolution.TestForkResolution.test_competing_miners) ... [Difficulty ↑] Mined in 0.00s → difficulty = 2
+[Difficulty ↑] Mined in 0.00s → difficulty = 2
+[Difficulty ↑] Mined in 0.00s → difficulty = 3
+[Blockchain] Previous hash does not match latest block
 ok
 test_peer_registration_and_discovery (test_network.TestP2PNetwork.test_peer_registration_and_discovery) ... Tracker listening on 127.0.0.1:10000
 [+] Registered peer: peer0.local:50000
@@ -65,7 +81,7 @@ test_peer_registration_and_discovery (test_network.TestP2PNetwork.test_peer_regi
 ok
 
 ----------------------------------------------------------------------
-Ran 7 tests in 0.105s
+Ran 9 tests in 3.220s
 
 OK
 ```

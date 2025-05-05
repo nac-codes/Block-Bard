@@ -9,14 +9,14 @@ class TestForkResolution(unittest.TestCase):
         b = Blockchain(difficulty=1)
 
         # Both mine block #1 differently
-        blkA1 = a.add_block("A’s block 1")
-        blkB1 = b.add_block("B’s block 1")
+        blkA1 = a.add_block("A's block 1")
+        blkB1 = b.add_block("B's block 1")
+
         # They should disagree on block1 hash
-        self.assertNotEqual(a.get_latest_block().hash,
-                            b.get_latest_block().hash)
+        self.assertNotEqual(blkA1.hash, blkB1.hash)
 
         # Node A mines block #2 on top of its block1
-        blkA2 = a.add_block("A’s block 2")
+        blkA2 = a.add_block("A's block 2")
         self.assertEqual(len(a.chain), 3)  # genesis + blkA1 + blkA2
 
         # Node B sees blkA2 but rejects it (wrong prev_hash)

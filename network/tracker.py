@@ -9,6 +9,20 @@ class Tracker:
         self.peers = set()
 
     def start(self):
+        """
+        start the tracker server to accept peer registry requests
+        runs indefinitely, spawning a new thread for each incoming connection
+
+        it binds to self.host:self.port, listens for TCP connections,
+        and uses handle_peer() to process JOIN/LEAVE/GETPEERS commands
+        in separate daemon threads
+
+        arguments:
+        None
+
+        return:
+        None
+        """
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.bind((self.host, self.port))
         srv.listen()
@@ -21,9 +35,9 @@ class Tracker:
     def handle_peer(self, conn):
         """
         Commands:
-          GETPEERS           → returns the current peer list, one per line
-          JOIN <peer_addr>   → adds peer_addr to the registry
-          LEAVE <peer_addr>  → removes peer_addr from the registry
+          GETPEERS           - returns the current peer list, one per line
+          JOIN <peer_addr>   - adds peer_addr to the registry
+          LEAVE <peer_addr>  - removes peer_addr from the registry
         """
         try:
             data = conn.recv(1024).decode().strip()

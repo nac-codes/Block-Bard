@@ -45,7 +45,7 @@ class TestBlockchain(unittest.TestCase):
             "index": 1,
             "timestamp": 1234567890.0,
             "data": "fake",
-            "previous_hash": "WRONG",
+            "previous_hash": "WRONG", # the previous hash here is not valid, so should fail
             "nonce": 0,
             "hash": "0000"  # even if it meets PoW
         }

@@ -6,7 +6,6 @@ import json
 import time
 import argparse
 import logging
-import os
 import atexit
 
 from blockchain.blockchain import Blockchain
@@ -15,6 +14,21 @@ from agent.storyteller import StoryTeller
 from agent.mining_agent import MiningAgent
 
 def fetch_peers(tracker_host, tracker_port, self_id):
+    """
+    fetch list of peers from tracker server
+    blocking until the full peer list is received
+
+    it sends a GETPEERS command to the tracker, decodes the response lines,
+    and filters out this node's own identifier
+
+    arguments:
+    tracker_host -- the tracker's hostname or IP address
+    tracker_port -- the tracker's port number
+    self_id      -- this peer's identifier to exclude from the returned list
+
+    return:
+    list of peer identifiers (strings) excluding self_id
+    """
     with socket.socket() as s:
         s.connect((tracker_host, tracker_port))
         s.sendall(b"GETPEERS\n")
@@ -22,6 +36,23 @@ def fetch_peers(tracker_host, tracker_port, self_id):
     return [p for p in data if p != self_id]
 
 def broadcast_fn(tracker_host, tracker_port, self_id, blk_dict):
+    """
+    broadcast block data to all peers
+    blocking until each send attempt completes
+
+    it fetches the peer list via fetch_peers, serializes blk_dict as a JSON
+    payload prefixed with "BLOCK ", then iterates through each peer,
+    sending the message and logging success or failure
+
+    arguments:
+    tracker_host -- the tracker's hostname or IP address
+    tracker_port -- the tracker's port number
+    self_id      -- this peer's identifier to exclude from broadcast
+    blk_dict     -- dictionary containing the block data to send
+
+    return:
+    None
+    """
     peers = fetch_peers(tracker_host, tracker_port, self_id)
     msg = "BLOCK " + json.dumps(blk_dict) + "\n"
     for p in peers:
@@ -30,11 +61,31 @@ def broadcast_fn(tracker_host, tracker_port, self_id, blk_dict):
             with socket.socket() as s:
                 s.connect((host, int(port_s)))
                 s.sendall(msg.encode())
-            print(f"[Broadcast] → {p}")
+            print(f"[Broadcast] -> {p}")
         except Exception as e:
-            print(f"[Broadcast] ✗ {p}: {e}")
+            print(f"[Broadcast] x {p}: {e}")
 
 def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
+    """
+    listen for incoming block and chain requests on given port
+    runs indefinitely, handling GETCHAIN and BLOCK commands
+
+    it binds to the specified port, accepts connections in a loop,
+    responds to GETCHAIN by sending the full chain, processes BLOCK
+    messages—appending valid next blocks, rejecting duplicates,
+    and syncing out-of-order blocks by fetching the longest valid chain
+    from peers
+
+    arguments:
+    port           -- TCP port to listen on for peer connections
+    bc             -- blockchain instance with attributes chain, get_latest_block(), add_block_from_dict(), is_valid_chain()
+    tracker_host   -- the tracker's hostname or IP address for peer discovery
+    tracker_port   -- the tracker's port number for peer discovery
+    self_id        -- this node's identifier to exclude from peer list
+
+    return:
+    None
+    """
     srv = socket.socket()
     srv.bind(('', port))
     srv.listen()

@@ -29,7 +29,20 @@ CORS(app, expose_headers=[
 ])
 
 def fetch_peers():
-    """Ask the tracker for current peer list."""
+    """
+    ask the tracker for the current peer list
+    blocking until peer list is received or a timeout/error occurs
+
+    it connects to the tracker using TRACKER_HOST and TRACKER_PORT,
+    sends GETPEERS, reads the response lines, resolves hostnames to IPs,
+    and returns a list of "ip:port" strings (falling back to hostname on resolution failure)
+
+    arguments:
+    None
+
+    return:
+    list of peer address strings in "ip:port" format, or empty list on error
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(PEER_CONNECT_TIMEOUT)
@@ -53,7 +66,20 @@ def fetch_peers():
         return []
 
 def fetch_chain_from_peer(peer):
-    """GETCHAIN from one peer, return list of block‐dicts."""
+    """
+    fetch blockchain data from a single peer
+    blocking until the full chain is received or an error/timeout occurs
+
+    it parses the peer address, connects over TCP with timeouts,
+    sends GETCHAIN, verifies the "CHAIN " prefix, streams the JSON payload
+    in chunks (with size and timeout safety checks), and returns the parsed list
+
+    arguments:
+    peer -- address string in "host:port" format of the peer to query
+
+    return:
+    list of block dictionaries on success, or empty list on failure
+    """
     host, port_s = peer.split(':')
     port = int(port_s)
     
@@ -175,7 +201,21 @@ def fetch_chain_from_peer(peer):
     return []
 
 def find_position_data(position_hash, all_blocks):
-    """Try to find position data in blocks with matching position hash."""
+    """
+    find position data in blocks matching a given position hash
+    blocking until a matching block with valid JSON data is found
+
+    it iterates through all_blocks, compares each block's 'position_hash',
+    attempts to parse its 'data' field as JSON, and returns the 'storyPosition'
+    value if present
+
+    arguments:
+    position_hash -- hash string identifying the target position
+    all_blocks    -- iterable of block dictionaries, each with keys 'position_hash' and 'data'
+
+    return:
+    the storyPosition value if found and parsed successfully, otherwise None
+    """
     for block in all_blocks:
         if block.get('position_hash') == position_hash:
             try:
@@ -189,6 +229,21 @@ def find_position_data(position_hash, all_blocks):
 
 @app.route('/chain')
 def chain():
+    """
+    retrieve and return the blockchain with optional pagination
+    blocking until a valid chain is fetched from a peer or none available
+
+    it discovers peers via fetch_peers(), attempts to GETCHAIN from each until
+    successful, then applies page/per_page query parameters to slice the result
+
+    arguments:
+    None (uses query params):
+      - page     -- 1-based page number (default=1)
+      - per_page -- number of blocks per page (default=0 for all)
+
+    return:
+    JSON list of block dictionaries (possibly paginated), or empty list if fetch fails
+    """
     # Get pagination parameters
     page = request.args.get('page', default=1, type=int)
     per_page = request.args.get('per_page', default=0, type=int)  # 0 means all
@@ -269,6 +324,19 @@ def chain():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
+    """
+    serve static files with SPA fallback
+    blocking until the requested file is sent or index.html fallback
+
+    it checks if the given path exists under STATIC_DIR and returns it;
+    otherwise, it returns the default index.html for single-page apps
+
+    arguments:
+    path -- requested file path relative to STATIC_DIR
+
+    return:
+    Flask response: the file from STATIC_DIR or index.html on fallback
+    """
     if path != "" and os.path.exists(os.path.join(STATIC_DIR, path)):
         return send_from_directory(STATIC_DIR, path)
     else:

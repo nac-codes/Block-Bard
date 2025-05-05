@@ -2,6 +2,8 @@ import time
 from blockchain.block import Block
 import hashlib
 import json
+from unittest.mock import patch
+
 
 def generate_position_hash(position_data):
     """

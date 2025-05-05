@@ -1,10 +1,14 @@
 import unittest
 from blockchain.blockchain import Blockchain
 from blockchain.block import Block
+from unittest.mock import patch
 
 class TestBlockchain(unittest.TestCase):
     def test_valid_chain(self):
         bc = Blockchain(difficulty=1)
+        def fake_mine(block):
+            block.hash = '0' * bc.difficulty + 'abc'
+        bc._mine_block = fake_mine
         bc.add_block("block A")
         bc.add_block("block B")
         self.assertTrue(bc.is_valid())
@@ -52,7 +56,7 @@ class TestBlockchain(unittest.TestCase):
         self.assertFalse(bc.add_block_from_dict(fake))
         self.assertEqual(len(bc.chain), 1)  # only genesis
 
-    def test_dynamic_difficulty_adjusts(self):
+    def test_dynamic_difficulty_adjusts(self): 
         bc = Blockchain(difficulty=1)
         initial_difficulty = bc.difficulty
 

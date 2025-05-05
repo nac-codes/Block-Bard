@@ -1,6 +1,6 @@
 # TESTING.md
 
-This document describes the tests we run to verify blockchain resilience, fork handling, and P2P networking.
+This document describes the tests we run to verify blockchain resilience, dynamic difficulty adjustment, fork handling, and P2P networking.
 
 ## 1. Valid chain acceptance (`test_valid_chain`)
 - **Description:** Create a chain of 2–3 blocks with `difficulty=1`.  
@@ -18,15 +18,29 @@ This document describes the tests we run to verify blockchain resilience, fork h
 - **Description:** Feed a fresh `Blockchain` instance a well-formed block-dict via `add_block_from_dict(...)`.  
 - **Expectation:** Method returns `True` and chain length increments.
 
-## 5. Rejecting an invalid incoming block (`test_add_block_from_dict_reject`) 
-- **Description:** Feed it a block-dict with a wrong `previous_hash` or incorrect `hash`.  
+## 5. Rejecting an invalid incoming block (`test_add_block_from_dict_reject`)
+- **Description:** Feed it a block-dict with the wrong `previous_hash` or an incorrect `hash`.  
 - **Expectation:** Method returns `False` and chain remains unchanged.
 
-## 6. Fork resolution (competing miners) (`test_competing_miners`)
-- **Description:** Simulate two nodes that each mine block #1 on different branches, then one mines block #2.  
-- **Expectation:** The “losing” node rejects block #2 on its branch, then `resolve_conflicts(...)` replaces its chain with the longer one.
+## 6. Dynamic difficulty adjustment (`test_dynamic_difficulty_adjusts`)
+- **Description:** Mine 5 blocks in succession, allowing the code’s automatic retarget logic to run.  
+- **Expectation:** After those blocks, `bc.difficulty` is \>= 1 and different from its initial value.
 
-## 7. Peer-to-peer network and dynamic peer list (`test_peer_registration_and_discovery`)
+## 7. Difficulty increases and decreases (`test_difficulty_increases_and_decreases`)
+- **Description:**  
+  1. Patch `time.time()` to simulate a very fast block (1 s) and call `add_block("fast block")`.  
+  2. Expect `bc.difficulty` to have increased by 1.  
+  3. Patch `time.time()` to simulate a very slow block (12 s) and call `add_block("slow block")`.  
+  4. Expect `bc.difficulty` to have decreased by 1 (down to minimum 1).  
+- **Expectation:** Difficulty goes up after a fast block and down after a slow block.
+
+## 8. Fork resolution (competing miners) (`test_competing_miners`)
+- **Description:** Simulate two nodes that each mine block #1 on different branches, then one mines block #2.  
+- **Expectation:**  
+  1. The “losing” node rejects block #2 on its branch.  
+  2. Calling `resolve_conflicts(...)` with the longer chain causes it to adopt that chain and return `True`.
+
+## 9. Peer-to-peer network and dynamic peer list (`test_peer_registration_and_discovery`)
 - **Description:**  
   1. Start a `Tracker`.  
   2. Have three peers send `JOIN <host:port>`.  
@@ -44,7 +58,6 @@ python3 -m unittest discover -v tests
 
 ## Output of the test
 ```
-(base) quocbui@quocm2max-223 Block-Bard % python3 -m unittest discover -v tests
 test_add_block_from_dict_accept (test_blockchain.TestBlockchain.test_add_block_from_dict_accept) ... [Difficulty ↑] Mined in 0.00s → difficulty = 2
 [Difficulty ↑] Mined in 0.00s → difficulty = 3
 [Blockchain] Adopting remote genesis hash

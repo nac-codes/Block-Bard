@@ -10,6 +10,21 @@ from blockchain.blockchain import Blockchain
 from blockchain.block import Block
 
 def fetch_peers(tracker_host, tracker_port, self_id):
+    """
+    fetch list of peers from tracker server
+    blocking until the full peer list is received
+
+    it sends a GETPEERS command to the tracker, decodes the response lines,
+    and filters out this node's own identifier
+
+    arguments:
+    tracker_host -- the tracker's hostname or IP address
+    tracker_port -- the tracker's port number
+    self_id      -- this peer's identifier to exclude from the returned list
+
+    return:
+    list of peer identifiers (strings) excluding self_id
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((tracker_host, tracker_port))
         s.sendall("GETPEERS\n".encode())
@@ -17,6 +32,20 @@ def fetch_peers(tracker_host, tracker_port, self_id):
     return [p for p in data.splitlines() if p != self_id]
 
 def fetch_chain_from_peer(host, port):
+    """
+    fetch blockchain data from a single peer
+    blocking until a CHAIN response is received or an error occurs
+
+    it opens a TCP connection to the given host:port, sends GETCHAIN,
+    decodes the response, and returns the parsed chain if valid
+
+    arguments:
+    host -- peer's hostname or IP address
+    port -- peer's TCP port number
+
+    return:
+    list of block dictionaries on success, or None on failure
+    """
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((host, port))
@@ -29,6 +58,25 @@ def fetch_chain_from_peer(host, port):
     return None
 
 def listen_for_messages(port, bc, tracker_host, tracker_port, self_id):
+    """
+    listen for chain and block messages on given port
+    blocking until each message is processed
+
+    it binds to the specified port, accepts TCP connections in a loop,
+    replies to GETCHAIN requests with the full blockchain, processes
+    incoming BLOCK messages by appending valid next blocks or, if out-of-order,
+    syncing to the longest chain available from peers
+
+    arguments:
+    port           -- TCP port to listen on for incoming peer connections
+    bc             -- blockchain instance with attributes chain and get_latest_block()
+    tracker_host   -- tracker's hostname or IP address for peer discovery
+    tracker_port   -- tracker's port number for peer discovery
+    self_id        -- this node's identifier to exclude from peer list
+
+    return:
+    None
+    """
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.bind(('', port))
     srv.listen()
@@ -71,6 +119,23 @@ def listen_for_messages(port, bc, tracker_host, tracker_port, self_id):
             conn.close()
 
 def broadcast_block(blk_dict, tracker_host, tracker_port, self_id):
+    """
+    broadcast a new block to all peers except self
+    blocking until each send attempt completes
+
+    it retrieves the current peer list via fetch_peers(), constructs a
+    BLOCK message by JSON-serializing blk_dict, skips this node's own ID,
+    and sends the message to each remaining peer, logging success or error
+
+    arguments:
+    blk_dict      -- dictionary containing the block data to broadcast
+    tracker_host  -- the tracker's hostname or IP address for peer discovery
+    tracker_port  -- the tracker's port number for peer discovery
+    self_id       -- this node's identifier to exclude from broadcasting
+
+    return:
+    None
+    """
     peers = fetch_peers(tracker_host, tracker_port, self_id)
     msg = "BLOCK " + json.dumps(blk_dict) + "\n"
     for p in peers:
@@ -82,9 +147,9 @@ def broadcast_block(blk_dict, tracker_host, tracker_port, self_id):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((host, port))
                 s.sendall(msg.encode())
-            print(f"[Broadcast] → {p}")
+            print(f"[Broadcast] - {p}")
         except Exception as e:
-            print(f"[Broadcast] ✗ {p}: {e}")
+            print(f"[Broadcast] x {p}: {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:

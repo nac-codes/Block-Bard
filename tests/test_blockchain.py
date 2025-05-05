@@ -52,5 +52,31 @@ class TestBlockchain(unittest.TestCase):
         self.assertFalse(bc.add_block_from_dict(fake))
         self.assertEqual(len(bc.chain), 1)  # only genesis
 
+    def test_dynamic_difficulty_adjusts(self):
+        bc = Blockchain(difficulty=1)
+        initial_difficulty = bc.difficulty
+
+        # Add multiple blocks to allow time-based adjustment
+        for i in range(5):
+            bc.add_block(f"block {i}")
+
+        # Check that difficulty has changed at least once
+        self.assertTrue(bc.difficulty >= 1)
+        self.assertNotEqual(initial_difficulty, bc.difficulty)
+
+    def test_difficulty_increases_and_decreases(self):
+        bc = Blockchain(difficulty=2)
+
+        # Simulate fast mining
+        with patch("time.time", side_effect=[0, 1]):  # 1 second elapsed
+            bc.add_block("fast block")
+            self.assertEqual(bc.difficulty, 3)
+
+        # Simulate slow mining
+        with patch("time.time", side_effect=[0, 12]):  # 12 seconds elapsed
+            bc.add_block("slow block")
+            self.assertEqual(bc.difficulty, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

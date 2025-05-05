@@ -1,3 +1,4 @@
+import time
 from blockchain.block import Block
 import hashlib
 import json
@@ -91,11 +92,34 @@ class Blockchain:
                 return True
         return False
 
+    # def _mine_block(self, block):
+    #     target = "0" * self.difficulty
+    #     while not block.hash.startswith(target):
+    #         block.nonce += 1
+    #         block.hash = block.calculate_hash()
+
     def _mine_block(self, block):
         target = "0" * self.difficulty
+        start_time = time.time()
+
         while not block.hash.startswith(target):
             block.nonce += 1
             block.hash = block.calculate_hash()
+
+        end_time = time.time()
+        elapsed = end_time - start_time
+
+        target_time = 5  #seconds per block
+
+        if elapsed < target_time * 0.5:
+            self.difficulty += 1
+            print(f"[Difficulty ↑] Mined in {elapsed:.2f}s → difficulty = {self.difficulty}")
+        elif elapsed > target_time * 2 and self.difficulty > 1:
+            self.difficulty -= 1
+            print(f"[Difficulty ↓] Mined in {elapsed:.2f}s → difficulty = {self.difficulty}")
+        else:
+            print(f"[Difficulty ↔] Mined in {elapsed:.2f}s → difficulty unchanged = {self.difficulty}")
+
 
     def is_valid(self):
         position_hashes = set()

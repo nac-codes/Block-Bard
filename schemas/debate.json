@@ -39,22 +39,22 @@
     },
     "storyPosition": {
       "type": "object",
-      "description": "The position in the debate structure",
+      "description": "A unique position identifier for this contribution in the debate structure. Each contribution MUST have a new, unique storyPosition that doesn't match any previous position. This allows others to reference your contribution. The debateId represents the main topic thread, threadId represents a subtopic or specific argument thread, and sequence is the position in that thread.",
       "required": ["debateId", "threadId", "sequence"],
       "properties": {
-        "debateId": {"type": "string"},
-        "threadId": {"type": "string"},
-        "sequence": {"type": "integer"}
+        "debateId": {"type": "string", "description": "A string identifying the main debate topic (e.g., 'economic-decline', 'cultural-values', 'military-reforms')"},
+        "threadId": {"type": "string", "description": "A string identifying the specific thread or subtopic being discussed (e.g., 'currency-debasement', 'civic-virtue', 'barbarian-integration')"},
+        "sequence": {"type": "integer", "description": "The sequence number in this thread, starting with 1 for a new thread"}
       }
     },
     "previousPosition": {
       "type": "object",
-      "description": "The previous position this debate contribution continues from",
+      "description": "The specific previous contribution this debate entry is responding to or building upon. This MUST reference an existing position from any previous contribution, not necessarily the most recent one. This enables branching debate structure where historians can respond to any prior point. For new topics (typically PROPOSAL types), this may be omitted or set to null.",
       "required": ["debateId", "threadId", "sequence"],
       "properties": {
-        "debateId": {"type": "string"},
-        "threadId": {"type": "string"},
-        "sequence": {"type": "integer"}
+        "debateId": {"type": "string", "description": "The debateId of the contribution being referenced"},
+        "threadId": {"type": "string", "description": "The threadId of the contribution being referenced"},
+        "sequence": {"type": "integer", "description": "The sequence number of the contribution being referenced"}
       }
     }
   }

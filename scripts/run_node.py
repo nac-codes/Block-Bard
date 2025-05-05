@@ -40,61 +40,118 @@ def listen_for_blocks(port, bc, tracker_host, tracker_port, self_id):
     srv.listen()
     print(f"[Listener] Listening on port {port}…")
     while True:
-        conn, _ = srv.accept()
-        raw = conn.recv(8192).decode().strip()
+        conn, addr = srv.accept()
+        try:
+            raw = conn.recv(8192).decode().strip()
 
-        # Reply on same connection to GETCHAIN
-        if raw == "GETCHAIN":
-            payload = json.dumps([blk.to_dict() for blk in bc.chain])
-            conn.sendall(f"CHAIN {payload}\n".encode())
-            conn.close()
-            continue
-
-        # Incoming block
-        if raw.startswith("BLOCK "):
-            blk = json.loads(raw[len("BLOCK "):])
-            latest = bc.get_latest_block()
-            
-            # Check for position hash uniqueness
-            if "position_hash" in blk and any(b.position_hash == blk["position_hash"] for b in bc.chain):
-                print(f"[Listener] Rejecting block with duplicate position hash")
+            # Reply on same connection to GETCHAIN
+            if raw == "GETCHAIN":
+                # For large blockchains, serialize and send in smaller chunks
+                # to avoid timeouts and memory issues
+                try:
+                    # First, prepare the data
+                    chain_data = [blk.to_dict() for blk in bc.chain]
+                    json_data = json.dumps(chain_data)
+                    
+                    # Log the size for debugging
+                    data_size = len(json_data.encode())
+                    print(f"[Listener] Sending chain with {len(chain_data)} blocks ({data_size/1024:.1f}KB) to {addr[0]}:{addr[1]}")
+                    
+                    # Send in a single response for small chains (under 1MB)
+                    if data_size < 1024 * 1024:  # 1MB
+                        conn.sendall(f"CHAIN {json_data}\n".encode())
+                    else:
+                        # For larger chains, split the JSON array into chunks
+                        # This is a workaround for large chains - sending prefix first
+                        conn.sendall(b"CHAIN ")
+                        
+                        # Send data in small chunks
+                        chunk_size = 65536  # 64KB chunks
+                        bytes_data = json_data.encode()
+                        for i in range(0, len(bytes_data), chunk_size):
+                            chunk = bytes_data[i:i+chunk_size]
+                            conn.sendall(chunk)
+                            
+                            # Add small delay to prevent buffer overflows
+                            if i % (1024 * 1024) == 0 and i > 0:  # Every 1MB
+                                print(f"[Listener] Sent {i/1024:.1f}KB so far...")
+                                time.sleep(0.1)  # Small delay every MB
+                                
+                        # Make sure to terminate the response
+                        conn.sendall(b"\n")
+                    
+                    print(f"[Listener] Finished sending chain data")
+                except Exception as e:
+                    print(f"[Listener] Error sending chain: {e}")
+                    # Send a simple response in case of error
+                    try:
+                        conn.sendall(b"CHAIN []\n")
+                    except:
+                        pass
                 conn.close()
                 continue
+
+            # Incoming block
+            if raw.startswith("BLOCK "):
+                blk = json.loads(raw[len("BLOCK "):])
+                latest = bc.get_latest_block()
                 
-            if blk["index"] == latest.index + 1 and blk["previous_hash"] == latest.hash:
-                # Try to add the block
-                if bc.add_block_from_dict(blk):
-                    print(f"[Listener] Appended block #{blk['index']}")
-            else:
-                # Out‐of‐order → sync longest chain
-                print(f"[Listener] Out-of-order block {blk['index']}; syncing…")
-                peers = fetch_peers(tracker_host, tracker_port, self_id)
-                best_chain = None
-                best_length = len(bc.chain)
-                
-                for p in peers:
-                    host, ps = p.split(':')
-                    try:
-                        with socket.socket() as s3:
-                            s3.connect((host, int(ps)))
-                            s3.sendall(b"GETCHAIN\n")
-                            data = s3.recv(65536).decode().strip()
-                        if data.startswith("CHAIN "):
-                            chain_data = json.loads(data[len("CHAIN "):])
-                            candidate = [Block(**d) for d in chain_data]
+                # Check for position hash uniqueness
+                if "position_hash" in blk and any(b.position_hash == blk["position_hash"] for b in bc.chain):
+                    print(f"[Listener] Rejecting block with duplicate position hash")
+                    conn.close()
+                    continue
+                    
+                if blk["index"] == latest.index + 1 and blk["previous_hash"] == latest.hash:
+                    # Try to add the block
+                    if bc.add_block_from_dict(blk):
+                        print(f"[Listener] Appended block #{blk['index']}")
+                else:
+                    # Out‐of‐order → sync longest chain
+                    print(f"[Listener] Out-of-order block {blk['index']}; syncing…")
+                    peers = fetch_peers(tracker_host, tracker_port, self_id)
+                    best_chain = None
+                    best_length = len(bc.chain)
+                    
+                    for p in peers:
+                        host, ps = p.split(':')
+                        try:
+                            with socket.socket() as s3:
+                                s3.connect((host, int(ps)))
+                                s3.sendall(b"GETCHAIN\n")
+                                
+                                # Read with better chunking
+                                chunks = []
+                                while True:
+                                    data = s3.recv(65536)
+                                    if not data:
+                                        break
+                                    chunks.append(data)
+                                
+                                full_data = b''.join(chunks)
+                                if full_data.startswith(b"CHAIN "):
+                                    chain_json = full_data[6:].decode().strip()
+                                    chain_data = json.loads(chain_json)
+                                    candidate = [Block(**d) for d in chain_data]
+                                    
+                                    # Check if this is a valid chain with no duplicate position hashes
+                                    if len(candidate) > best_length and bc.is_valid_chain(candidate):
+                                        best_chain = candidate
+                                        best_length = len(candidate)
+                        except Exception as e:
+                            print(f"[Listener] Error syncing with {p}: {e}")
+                            continue
                             
-                            # Check if this is a valid chain with no duplicate position hashes
-                            if len(candidate) > best_length and bc.is_valid_chain(candidate):
-                                best_chain = candidate
-                                best_length = len(candidate)
-                    except Exception as e:
-                        print(f"[Listener] Error syncing with {p}: {e}")
-                        continue
-                        
-                if best_chain and len(best_chain) > len(bc.chain):
-                    bc.chain = best_chain
-                    print(f"[Listener] Synced to length {len(bc.chain)}")
-            conn.close()
+                    if best_chain and len(best_chain) > len(bc.chain):
+                        bc.chain = best_chain
+                        print(f"[Listener] Synced to length {len(bc.chain)}")
+        except Exception as e:
+            print(f"[Listener] Error handling connection: {e}")
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
 
 def main():
     parser = argparse.ArgumentParser(description="Run a Block-Bard node")

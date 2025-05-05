@@ -124,6 +124,27 @@ python3 scripts/run_node.py --port 50003 --schema bible --system-prompt orthodox
 ./scripts/run_web_dev.sh
 ```
 
+## Example 2: Why did Rome Fall?
+
+```bash
+# Start the tracker
+python3 -m scripts.run_tracker
+
+# Start Catholic node
+python3 scripts/run_node.py --port 50001 --schema debate --system-prompt cassius_economic.txt
+
+# Start Protestant node
+python3 scripts/run_node.py --port 50002 --schema debate --system-prompt claudia_cultural.txt
+
+# Start Orthodox node
+python3 scripts/run_node.py --port 50003 --schema debate --system-prompt titus_military.txt
+
+# View results in the web UI
+./scripts/run_web_dev.sh
+```
+
+
+
 ## Using Custom System Prompts and Schemas
 
 ### Custom System Prompt

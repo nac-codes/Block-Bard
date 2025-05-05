@@ -39,27 +39,113 @@ export const fetchBlockchain = async (): Promise<Block[]> => {
   try {
     // Set a longer timeout for large chains and disable response size limit
     const options = {
-      timeout: 30000, // 30 seconds
+      timeout: 60000, // 60 seconds (doubled from 30)
       maxContentLength: Infinity,
       maxBodyLength: Infinity
     };
 
-    // For potentially large chains, we'll use pagination
-    // First, get just the latest blocks to update the UI quickly
+    console.log('Fetching blockchain data...');
+    
+    // First, get just the latest blocks with pagination to display quickly
     const latestResponse = await axios.get(`${API_URL}/chain?page=1&per_page=20`, options);
+    
+    // Debug headers
+    console.log('Response headers:', latestResponse.headers);
+    
+    // Check if we have pagination headers (case-insensitive check)
+    const headerKeys = Object.keys(latestResponse.headers).map(k => k.toLowerCase());
+    console.log('Available headers:', headerKeys);
+    
+    // Get header values regardless of case
+    const getHeaderCaseInsensitive = (headers: any, key: string): string => {
+      const lowerKey = key.toLowerCase();
+      const matchingKey = Object.keys(headers).find(k => k.toLowerCase() === lowerKey);
+      return matchingKey ? headers[matchingKey] : '';
+    };
+    
+    const totalBlocks = parseInt(getHeaderCaseInsensitive(latestResponse.headers, 'x-total-blocks') || '0');
+    const totalPages = parseInt(getHeaderCaseInsensitive(latestResponse.headers, 'x-total-pages') || '0');
+    
+    console.log(`Pagination info: total blocks=${totalBlocks}, total pages=${totalPages}`);
+    
+    // Use the partial data initially
     let allBlocks = latestResponse.data;
     
-    // Check if we have more to fetch
-    if (allBlocks.length === 20) {
-      console.log('Chain might be large, fetching complete chain...');
+    // If we have more blocks to fetch and pagination info is available
+    if (totalBlocks > 20 && totalPages > 1) {
+      console.log(`Chain has ${totalBlocks} blocks across ${totalPages} pages, fetching remaining data...`);
       
-      // Now get the complete chain in the background
+      try {
+        // Fetch remaining pages in parallel
+        const pagePromises = [];
+        
+        // Limit to a reasonable number of parallel requests
+        const MAX_PARALLEL_REQUESTS = 3;
+        const BLOCKS_PER_PAGE = 20;
+        
+        // Fetch a few pages at a time to avoid overwhelming the server
+        for (let page = 2; page <= totalPages; page += MAX_PARALLEL_REQUESTS) {
+          const pageGroup = [];
+          
+          // Create a batch of promises for pages
+          for (let i = 0; i < MAX_PARALLEL_REQUESTS && (page + i) <= totalPages; i++) {
+            const currentPage = page + i;
+            console.log(`Fetching page ${currentPage}...`);
+            pageGroup.push(
+              axios.get(`${API_URL}/chain?page=${currentPage}&per_page=${BLOCKS_PER_PAGE}`, options)
+                .then(response => {
+                  console.log(`Received page ${currentPage} with ${response.data.length} blocks`);
+                  return response.data;
+                })
+                .catch(err => {
+                  console.warn(`Error fetching page ${currentPage}:`, err);
+                  return []; // Return empty array for failed pages
+                })
+            );
+          }
+          
+          // Wait for this batch to complete before starting the next
+          const pageResults = await Promise.all(pageGroup);
+          pagePromises.push(...pageResults);
+          
+          // Give the server a small break between batches
+          if (page + MAX_PARALLEL_REQUESTS <= totalPages) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
+        
+        // Combine all pages
+        let remainingBlocks = pagePromises.flat();
+        console.log(`Fetched ${remainingBlocks.length} additional blocks`);
+        
+        // Combine with first page, ensuring no duplicates
+        const seenIndices = new Set(allBlocks.map((block: Block) => block.index));
+        
+        for (const block of remainingBlocks) {
+          if (!seenIndices.has(block.index)) {
+            allBlocks.push(block);
+            seenIndices.add(block.index);
+          }
+        }
+        
+        // Sort by index to ensure proper order
+        allBlocks.sort((a: Block, b: Block) => a.index - b.index);
+        
+        console.log(`Final blockchain has ${allBlocks.length} blocks`);
+      } catch (err) {
+        console.warn('Error fetching additional pages, using partial data:', err);
+      }
+    } else if (totalBlocks > 0 && totalBlocks !== allBlocks.length) {
+      // If headers indicate more blocks but we couldn't fetch pages, try once more with a direct request
+      console.log(`Headers indicate ${totalBlocks} blocks but we received ${allBlocks.length}. Attempting direct fetch...`);
       try {
         const fullResponse = await axios.get(`${API_URL}/chain`, options);
-        allBlocks = fullResponse.data;
-        console.log(`Fetched complete blockchain: ${allBlocks.length} blocks`);
+        if (fullResponse.data && Array.isArray(fullResponse.data) && fullResponse.data.length > allBlocks.length) {
+          allBlocks = fullResponse.data;
+          console.log(`Direct fetch successful, got ${allBlocks.length} blocks`);
+        }
       } catch (err) {
-        console.warn('Error fetching complete chain, using partial chain:', err);
+        console.warn('Direct fetch failed:', err);
       }
     } else {
       console.log(`Fetched complete blockchain: ${allBlocks.length} blocks`);

@@ -10,7 +10,7 @@ from agent.story_config import load_schema
 from agent.schema_utils import create_pydantic_model_from_schema
 
 class StoryTeller:
-    def __init__(self, schema_name_or_path="bible", api_key=None, system_prompt=None):
+    def __init__(self, schema_name_or_path, api_key=None, system_prompt=None):
         self.schema = load_schema(schema_name_or_path)
         
         # Set up logging
@@ -77,23 +77,27 @@ class StoryTeller:
                     continue
                     
                 try:
+                    # Parse and display the full JSON data without assumptions about specific fields
                     data = json.loads(block.data)
+                    
+                    # Only filter for storyPosition to track available positions
                     if "storyPosition" in data:
-                        pos_str = json.dumps(data["storyPosition"])
-                        content = data.get("Content", "")                        
-                        author = data.get("Author", block.author if hasattr(block, "author") else "Unknown")
-                        prompt += f"- Position {pos_str}: {content} [Author: {author}]\n"
                         positions_found.append(data["storyPosition"])
+                    
+                    # Display the entire block data in JSON format
+                    prompt += f"- Block {block.index}: {json.dumps(data)}\n"
+                    
                 except (json.JSONDecodeError, AttributeError):
+                    prompt += f"- Block {block.index}: [Error: Could not parse data]\n"
                     continue
             
             if not positions_found:
-                prompt += "No structured positions found. You should create the first position (Genesis 1:1).\n"
+                prompt += "No structured positions found. You should create the first position in this content thread.\n"
             
             prompt += "\n"
         else:
-            # If this is the first content, explicitly direct it to start with Genesis 1:1
-            prompt += "You should start with Genesis 1:1.\n\n"
+            # If this is the first content
+            prompt += "You should create the first position in this content thread. Follow the appropriate structure.\n\n"
         
         # Add node ID information
         if node_id:
@@ -105,8 +109,8 @@ class StoryTeller:
         prompt += "1. You MUST include both 'storyPosition' and 'previousPosition' in your response.\n"
         prompt += "2. 'storyPosition' should be a NEW unique position that doesn't exist yet.\n"
         prompt += "3. 'previousPosition' should reference an EXISTING position from the content that you're continuing from.\n"
-        prompt += "4. If this is the first content, use the position structure {\"book\": \"Genesis\", \"chapter\": 1, \"verse\": 1} and set previousPosition to null.\n"
-        prompt += "5. Position should reflect the logical structure of the content (book, chapter, verse).\n"
+        prompt += "4. If this is the first content, set previousPosition to null.\n"
+        prompt += "5. Position should reflect the logical structure of the content.\n"
         prompt += "6. You can branch from any previous position if there's a logical reason to create an alternate version.\n"
         
         return prompt

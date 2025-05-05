@@ -13,6 +13,9 @@ class Block:
                  hash=None,
                  position_hash=None,
                  previous_position_hash=None):
+        """
+        Initialize a new block
+        """
         self.index = index
         self.timestamp = timestamp if timestamp is not None else time.time()
         self.data = data            # original "payload" for tests
@@ -29,6 +32,9 @@ class Block:
             self.hash = self.calculate_hash()
 
     def calculate_hash(self):
+        """
+        Calculate the hash of the block
+        """
         # If author is set, include it in the PoW payload
         if self.author is not None:
             payload = (
@@ -55,6 +61,9 @@ class Block:
         return hashlib.sha256(payload.encode()).hexdigest()
 
     def to_dict(self):
+        """
+        Convert the block to a dictionary
+        """
         # Always include 'data' for your tests.
         d = {
             "index": self.index,
@@ -64,7 +73,6 @@ class Block:
             "nonce": self.nonce,
             "hash": self.hash,
         }
-        # Only include author and position hashes if set
         if self.author is not None:
             d["author"] = self.author
         if self.position_hash is not None:

@@ -12,15 +12,24 @@ def generate_position_hash(position_data):
 
 class Blockchain:
     def __init__(self, difficulty=2):
+        """
+        Initialize the blockchain with a genesis block and a starting difficulty level.
+        """
         self.chain = [ self._create_genesis_block() ]
         self.difficulty = difficulty
 
     def _create_genesis_block(self):
+        """
+        Create the genesis block with a special position hash.
+        """
         # Genesis has no author and a special position hash
         genesis_position = generate_position_hash({"book": 0, "chapter": 0, "verse": 0})
         return Block(index=0, previous_hash="0", data="Genesis Block", position_hash=genesis_position)
 
     def get_latest_block(self):
+        """
+        Return the latest block in the blockchain.
+        """
         return self.chain[-1]
 
     def add_block(self, payload):
@@ -99,6 +108,10 @@ class Blockchain:
     #         block.hash = block.calculate_hash()
 
     def _mine_block(self, block):
+        """
+        Mine a block by incrementing the nonce until the hash starts with the target.
+        Adjust difficulty based on mining time.
+        """
         target = "0" * self.difficulty
         start_time = time.time()
 
@@ -122,6 +135,9 @@ class Blockchain:
 
 
     def is_valid(self):
+        """
+        Validate the blockchain.
+        """
         position_hashes = set()
         for i in range(1, len(self.chain)):
             curr = self.chain[i]
@@ -148,8 +164,8 @@ class Blockchain:
 
     def add_block_from_dict(self, blk_dict):
         """
-        Validate & append a received block‐dict.
-        Special‐case block#1 on an empty chain to adopt remote genesis.
+        Validate & append a received block dict
+        Special case block#1 on an empty chain to adopt remote genesis
         """
         # Check if position hash already exists in our chain
         if "position_hash" in blk_dict and not self._is_position_hash_unique(blk_dict["position_hash"]):
@@ -181,18 +197,18 @@ class Blockchain:
             print("[Blockchain] Adopting remote genesis hash")
             self.chain[0].hash = blk.previous_hash
 
-        # 1) Link check
+        # 1 Link check
         latest = self.get_latest_block()
         if blk.previous_hash != latest.hash:
             print("[Blockchain] Previous hash does not match latest block")
             return False
 
-        # 2) Hash integrity
+        # 2 Hash integrity
         if blk.hash != blk.calculate_hash():
             print("[Blockchain] Hash mismatch")
             return False
 
-        # 3) PoW
+        # 3 PoW
         if not blk.hash.startswith("0" * self.difficulty):
             print("[Blockchain] Invalid proof-of-work")
             return False
